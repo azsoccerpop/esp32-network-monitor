@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <ESP32Ping.h>
 
 static std::vector<HostEntry> s_hosts;
 static Settings s_settings;
@@ -127,12 +128,19 @@ void HostMonitor::loop() {
   if (now - s_lastPingMs < (uint32_t)s_settings.ping_interval_sec * 1000UL) return;
   s_lastPingMs = now;
 
-  // Simulate pinging by toggling reachable and setting a faux latency.
+  // Perform a single ping (count=1) per host, sequentially.
   for (auto &h : s_hosts) {
     if (!h.enabled) continue;
-    // Simple simulated check -- replace with AsyncPing integration later.
-    h.reachable = true;
-    h.lastLatencyMs = random(10, 200);
+    bool ok = false;
+    // Try ping by hostname/IP; Ping.ping accepts const char* or IPAddress
+    ok = Ping.ping(h.host.c_str(), 1);
+    h.reachable = ok;
+    if (ok) {
+      float avg = Ping.averageTime();
+      h.lastLatencyMs = (uint32_t)avg;
+    } else {
+      h.lastLatencyMs = 0;
+    }
   }
 }
 
