@@ -36,8 +36,10 @@ void HostMonitor::loadHosts() {
   for (JsonObject obj : doc.as<JsonArray>()) {
     HostEntry h;
     h.id = id++;
-    h.name = String((const char*)obj["name"] | "");
-    h.host = String((const char*)obj["host"] | "");
+    const char* name = obj["name"] | "";
+    const char* host = obj["host"] | "";
+    h.name = String(name);
+    h.host = String(host);
     h.enabled = obj["enabled"] | true;
     h.reachable = false;
     h.lastLatencyMs = 0;
