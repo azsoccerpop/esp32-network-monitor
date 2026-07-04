@@ -1,18 +1,21 @@
 #include <Arduino.h>
-
-// put function declarations here:
-int myFunction(int, int);
+#include "DisplayManager.h"
+#include "HostMonitor.h"
+#include "WebInterface.h"
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  Serial.begin(115200);
+  Serial.println("Network Monitor starting...");
+
+  DisplayManager::begin();
+  HostMonitor::begin();
+  WebInterface::begin();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
+  HostMonitor::loop();
+  WebInterface::loop();
+  DisplayManager::loop();
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  delay(100);
 }
