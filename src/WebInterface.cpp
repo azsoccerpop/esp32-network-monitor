@@ -1,11 +1,109 @@
 #include "WebInterface.h"
 #include <Arduino.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
+#include "HostMonitor.h"
+
+static AsyncWebServer server(80);
+
+void serveStaticFiles() {
+  // Mount LittleFS and serve files from /data
+  if (!LittleFS.begin()) {
+    Serial.println("LittleFS mount failed");
+    return;
+  }
+  server.serveStatic("/", LittleFS, "/data/index.html").setDefaultFile("index.html");
+  server.serveStatic("/script.js", LittleFS, "/data/script.js");
+  server.serveStatic("/style.css", LittleFS, "/data/style.css");
+}
+
+void handleApiHosts(AsyncWebServerRequest *request) {
+  if (request->method() == HTTP_GET) {
+    const auto &hosts = HostMonitor::getHosts();
+    DynamicJsonDocument doc(4096);
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto &h : hosts) {
+      JsonObject o = arr.createNestedObject();
+      o["id"] = h.id;
+      o["name"] = h.name;
+      o["host"] = h.host;
+      o["enabled"] = h.enabled;
+      o["reachable"] = h.reachable;
+      o["lastLatencyMs"] = h.lastLatencyMs;
+    }
+    String out;
+    serializeJson(arr, out);
+    request->send(200, "application/json", out);
+    return;
+  }
+
+  if (request->method() == HTTP_POST) {
+    // Add host (simple implementation)
+    if (request->hasParam("body", true)) {
+      String body = request->getParam("body", true)->value();
+      DynamicJsonDocument doc(1024);
+      DeserializationError err = deserializeJson(doc, body);
+      if (err) {
+        request->send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+      }
+      const char *name = doc["name"] | "";
+      const char *host = doc["host"] | "";
+      if (strlen(host) == 0) {
+        request->send(400, "application/json", "{\"error\":\"host required\"}");
+        return;
+      }
+      HostMonitor::addHost(String(name), String(host));
+      request->send(200, "application/json", "{\"ok\":true}");
+      return;
+    }
+    request->send(400);
+  }
+}
+
+void handleApiSettings(AsyncWebServerRequest *request) {
+  if (request->method() == HTTP_GET) {
+    DynamicJsonDocument doc(1024);
+    auto s = HostMonitor::getSettings();
+    doc["brightness"] = s.brightness;
+    String out;
+    serializeJson(doc, out);
+    request->send(200, "application/json", out);
+    return;
+  }
+
+  if (request->method() == HTTP_POST) {
+    if (request->hasParam("body", true)) {
+      String body = request->getParam("body", true)->value();
+      DynamicJsonDocument doc(1024);
+      DeserializationError err = deserializeJson(doc, body);
+      if (err) {
+        request->send(400, "application/json", "{\"error\":\"invalid json\"}");
+        return;
+      }
+      if (doc.containsKey("brightness")) {
+        uint8_t b = doc["brightness"];
+        HostMonitor::saveBrightness(b);
+      }
+      request->send(200, "application/json", "{\"ok\":true}");
+      return;
+    }
+    request->send(400);
+  }
+}
 
 void WebInterface::begin() {
   Serial.println("WebInterface: begin");
-  // Start web server and register endpoints (placeholder)
+  serveStaticFiles();
+
+  server.on("/api/hosts", HTTP_ANY, [](AsyncWebServerRequest *r){ handleApiHosts(r); });
+  server.on("/api/settings", HTTP_ANY, [](AsyncWebServerRequest *r){ handleApiSettings(r); });
+
+  server.begin();
 }
 
 void WebInterface::loop() {
-  // Handle background web tasks if needed (placeholder)
+  // nothing to do here for AsyncWebServer
 }
