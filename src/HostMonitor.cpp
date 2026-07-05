@@ -15,12 +15,14 @@ void HostMonitor::loadHosts() {
     Serial.println("LittleFS mount failed in loadHosts");
     return;
   }
-  if (!LittleFS.exists("/data/hosts.json")) {
+
+  const char* path = LittleFS.exists("/hosts.json") ? "/hosts.json" : "/data/hosts.json";
+  if (!LittleFS.exists(path)) {
     Serial.println("hosts.json not found, using defaults");
-    // leave s_hosts empty or use compiled defaults
     return;
   }
-  File f = LittleFS.open("/data/hosts.json", "r");
+
+  File f = LittleFS.open(path, "r");
   if (!f) return;
   size_t size = f.size();
   std::unique_ptr<char[]> buf(new char[size+1]);
@@ -49,7 +51,10 @@ void HostMonitor::loadHosts() {
 
 void HostMonitor::saveHosts() {
   if (!LittleFS.begin()) return;
-  File f = LittleFS.open("/data/hosts.json", "w");
+  File f = LittleFS.open("/hosts.json", "w");
+  if (!f) {
+    f = LittleFS.open("/data/hosts.json", "w");
+  }
   if (!f) return;
   DynamicJsonDocument doc(4096);
   JsonArray arr = doc.to<JsonArray>();
@@ -66,8 +71,11 @@ void HostMonitor::saveHosts() {
 
 void HostMonitor::loadSettings() {
   if (!LittleFS.begin()) return;
-  if (!LittleFS.exists("/data/settings.json")) return;
-  File f = LittleFS.open("/data/settings.json", "r");
+
+  const char* path = LittleFS.exists("/settings.json") ? "/settings.json" : "/data/settings.json";
+  if (!LittleFS.exists(path)) return;
+
+  File f = LittleFS.open(path, "r");
   if (!f) return;
   size_t size = f.size();
   std::unique_ptr<char[]> buf(new char[size+1]);
@@ -84,7 +92,10 @@ void HostMonitor::loadSettings() {
 
 void HostMonitor::saveSettings() {
   if (!LittleFS.begin()) return;
-  File f = LittleFS.open("/data/settings.json", "w");
+  File f = LittleFS.open("/settings.json", "w");
+  if (!f) {
+    f = LittleFS.open("/data/settings.json", "w");
+  }
   if (!f) return;
   DynamicJsonDocument doc(1024);
   doc["brightness"] = s_settings.brightness;

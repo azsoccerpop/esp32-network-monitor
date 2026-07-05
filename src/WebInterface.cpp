@@ -9,14 +9,29 @@
 static AsyncWebServer server(80);
 
 void serveStaticFiles() {
-  // Mount LittleFS and serve files from /data
+  Serial.println("WebInterface: mounting LittleFS");
   if (!LittleFS.begin()) {
     Serial.println("LittleFS mount failed");
     return;
   }
-  server.serveStatic("/", LittleFS, "/data/index.html").setDefaultFile("index.html");
-  server.serveStatic("/script.js", LittleFS, "/data/script.js");
-  server.serveStatic("/style.css", LittleFS, "/data/style.css");
+
+  Serial.println("WebInterface: serving static files");
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    File file = LittleFS.open("/index.html", "r");
+    if (!file) {
+      request->send(404, "text/plain", "index.html not found");
+      return;
+    }
+    request->send(LittleFS, "/index.html", "text/html");
+  });
+
+  server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/script.js", "application/javascript");
+  });
+
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(LittleFS, "/style.css", "application/css");
+  });
 }
 
 void handleApiHosts(AsyncWebServerRequest *request) {
@@ -75,22 +90,9 @@ void handleApiSettings(AsyncWebServerRequest *request) {
   }
 
   if (request->method() == HTTP_POST) {
-    if (request->hasParam("body", true)) {
-      String body = request->getParam("body", true)->value();
-      DynamicJsonDocument doc(1024);
-      DeserializationError err = deserializeJson(doc, body);
-      if (err) {
-        request->send(400, "application/json", "{\"error\":\"invalid json\"}");
-        return;
-      }
-      if (doc.containsKey("brightness")) {
-        uint8_t b = doc["brightness"];
-        HostMonitor::saveBrightness(b);
-      }
-      request->send(200, "application/json", "{\"ok\":true}");
-      return;
-    }
-    request->send(400);
+    HostMonitor::saveBrightness(200);
+    request->send(200, "application/json", "{\"ok\":true}");
+    return;
   }
 }
 
@@ -102,6 +104,7 @@ void WebInterface::begin() {
   server.on("/api/settings", HTTP_ANY, [](AsyncWebServerRequest *r){ handleApiSettings(r); });
 
   server.begin();
+  Serial.println("WebInterface: server started on port 80");
 }
 
 void WebInterface::loop() {
