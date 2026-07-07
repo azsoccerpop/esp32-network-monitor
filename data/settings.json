@@ -3,7 +3,7 @@
     "ssid": "YOUR_SSID",
     "password": "YOUR_PASSWORD"
   },
-  "brightness": 128,
+  "brightness": 255,
   "ping_interval_sec": 3,
   "ping_timeout_ms": 1000,
   "max_hosts": 20

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <LittleFS.h>
 #include "DisplayManager.h"
 #include "HostMonitor.h"
 #include "WebInterface.h"
@@ -8,9 +9,13 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Network Monitor starting...");
 
+  if (!LittleFS.begin()) {
+    Serial.println("LittleFS mount failed -- host/settings persistence and web assets will be unavailable");
+  }
+
   connectToWiFi();
-  DisplayManager::begin();
   HostMonitor::begin();
+  DisplayManager::begin();
   WebInterface::begin();
 }
 

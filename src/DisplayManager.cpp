@@ -1,7 +1,6 @@
 #include "DisplayManager.h"
 #include <Arduino.h>
 
-#include <LittleFS.h>
 #include <U8g2lib.h>
 #include <Wire.h>
 #include "HostMonitor.h"
@@ -10,64 +9,111 @@ static constexpr uint8_t kSdaPin = 21;
 static constexpr uint8_t kSclPin = 22;
 static constexpr uint8_t kDisplayI2cAddress = 0x3C;
 
+// u8g2_font_helvR08_tr: Helvetica Regular 8pt, proportional sans-serif --
+// closest built-in match to an "Arial" look, cleaner than a bitmap/pixel font.
+// drawStr's y is the text baseline, not the top of the glyph, hence the
+// offsets below rather than y=0.
+static constexpr uint8_t kHeaderY = 8;          // baseline of "Network Monitor"
+static constexpr uint8_t kHeaderRuleY = 11;     // horizontal rule just under the header text
+static constexpr uint8_t kFirstHostY = 23;      // baseline of the first host row
+static constexpr uint8_t kHostLineHeight = 12;  // vertical spacing between host rows
+static constexpr uint8_t kScreenWidth = 128;
+static constexpr uint8_t kScreenHeight = 64;
+static constexpr uint8_t kMaxVisibleHostLines = (kScreenHeight - kFirstHostY) / kHostLineHeight + 1;
+static constexpr uint32_t kPageIntervalMs = 3000;
+static constexpr uint32_t kBlinkIntervalMs = 250;  // down-host rows flash at this rate
+
+static constexpr uint8_t kNameX = 0;         // left column: host name
+static constexpr uint8_t kStatusX = 62;      // middle column: UP/DOWN, fixed so it lines up across rows
+static constexpr uint8_t kRightMargin = 2;    // right column: latency, right-justified against this margin
+static constexpr uint8_t kNameMaxChars = 8;   // keep names clear of the status column
+
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-static uint8_t g_brightness = 128;
+static uint8_t g_brightness = 255;
+static bool s_ready = false;
+
+static void drawHeader() {
+  display.setFont(u8g2_font_helvR08_tr);
+  display.drawStr(0, kHeaderY, "Network Monitor");
+  display.drawHLine(0, kHeaderRuleY, kScreenWidth);
+}
+
+static void drawHostRow(uint8_t y, const HostEntry &h, bool blinkOn) {
+  if (!h.reachable && !blinkOn) {
+    // Blink "off" phase: leave this row blank so it visibly flashes.
+    return;
+  }
+
+  display.setFont(h.reachable ? u8g2_font_helvR08_tr : u8g2_font_helvB08_tr);
+
+  char nameBuf[16];
+  snprintf(nameBuf, sizeof(nameBuf), "%.*s", kNameMaxChars, h.name.c_str());
+  display.drawStr(kNameX, y, nameBuf);
+
+  display.drawStr(kStatusX, y, h.reachable ? "UP" : "DOWN");
+
+  if (h.reachable) {
+    char latBuf[16];
+    snprintf(latBuf, sizeof(latBuf), "%lums", static_cast<unsigned long>(h.lastLatencyMs));
+    const uint8_t w = display.getStrWidth(latBuf);
+    const uint8_t x = (w + kRightMargin < kScreenWidth) ? (kScreenWidth - kRightMargin - w) : 0;
+    display.drawStr(x, y, latBuf);
+  }
+}
 
 void DisplayManager::begin() {
   Serial.println("DisplayManager: begin");
   Wire.begin(kSdaPin, kSclPin);
   Wire.setClock(400000);
 
-  uint8_t detectedAddress = 0;
-  for (uint8_t candidate : {0x3C, 0x3D}) {
-    Wire.beginTransmission(candidate);
-    const uint8_t error = Wire.endTransmission();
-    if (error == 0) {
-      detectedAddress = candidate;
-      break;
-    }
-  }
-
-  if (detectedAddress == 0) {
-    Serial.println("I2C OLED not detected at common SH1106 addresses 0x3C or 0x3D");
+  display.setI2CAddress(kDisplayI2cAddress << 1);
+  if (!display.begin()) {
+    Serial.println("DisplayManager: display.begin() failed, display disabled");
     return;
   }
 
-  Serial.print("I2C OLED detected at 0x");
-  Serial.println(detectedAddress, HEX);
+  s_ready = true;
 
-  if (!LittleFS.begin()) {
-    Serial.println("LittleFS mount failed in DisplayManager");
-  }
-
-  display.setI2CAddress(detectedAddress);
-  display.begin();
-  auto s = HostMonitor::getSettings();
+  const auto s = HostMonitor::getSettings();
   g_brightness = s.brightness;
+  Serial.print("Brightness set at ");
+  Serial.println(g_brightness);
   display.setContrast(g_brightness);
+
   display.clearBuffer();
-  display.setFont(u8g2_font_ncenB08_tr);
-  display.drawStr(0, 0, "Network Monitor");
+  drawHeader();
   display.sendBuffer();
 }
 
 void DisplayManager::loop() {
+  if (!s_ready) return;
+
   const auto &hosts = HostMonitor::getHosts();
+
   display.clearBuffer();
-  display.setFont(u8g2_font_ncenB08_tr);
-  display.drawStr(0, 0, "Network Monitor");
+  drawHeader();
+
   if (!hosts.empty()) {
-    auto &h = hosts[0];
-    String line = h.name + ": " + (h.reachable ? "UP" : "DOWN");
-    display.drawStr(0, 14, line.c_str());
-    String lat = "lat:" + String(h.lastLatencyMs) + "ms";
-    display.drawStr(0, 30, lat.c_str());
+    const size_t numHosts = hosts.size();
+    const size_t numPages = (numHosts + kMaxVisibleHostLines - 1) / kMaxVisibleHostLines;
+    const size_t page = (numPages > 1) ? (millis() / kPageIntervalMs) % numPages : 0;
+    const size_t startIdx = page * kMaxVisibleHostLines;
+    const size_t endIdx = min(startIdx + kMaxVisibleHostLines, numHosts);
+    const bool blinkOn = ((millis() / kBlinkIntervalMs) % 2) == 0;
+
+    uint8_t row = 0;
+    for (size_t i = startIdx; i < endIdx; ++i, ++row) {
+      drawHostRow(kFirstHostY + row * kHostLineHeight, hosts[i], blinkOn);
+    }
   }
+
   display.sendBuffer();
 }
 
 void DisplayManager::setBrightness(uint8_t b) {
   g_brightness = b;
-  display.setContrast(g_brightness);
+  if (s_ready) {
+    display.setContrast(g_brightness);
+  }
   HostMonitor::saveBrightness(g_brightness);
 }

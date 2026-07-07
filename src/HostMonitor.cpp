@@ -1,9 +1,9 @@
-
 #include "HostMonitor.h"
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <ESP32Ping.h>
+#include <algorithm>
 
 static std::vector<HostEntry> s_hosts;
 static Settings s_settings;
@@ -11,10 +11,6 @@ static uint32_t s_lastPingMs = 0;
 
 void HostMonitor::loadHosts() {
   s_hosts.clear();
-  if (!LittleFS.begin()) {
-    Serial.println("LittleFS mount failed in loadHosts");
-    return;
-  }
 
   const char* path = LittleFS.exists("/hosts.json") ? "/hosts.json" : "/data/hosts.json";
   if (!LittleFS.exists(path)) {
@@ -50,7 +46,6 @@ void HostMonitor::loadHosts() {
 }
 
 void HostMonitor::saveHosts() {
-  if (!LittleFS.begin()) return;
   File f = LittleFS.open("/hosts.json", "w");
   if (!f) {
     f = LittleFS.open("/data/hosts.json", "w");
@@ -70,8 +65,6 @@ void HostMonitor::saveHosts() {
 }
 
 void HostMonitor::loadSettings() {
-  if (!LittleFS.begin()) return;
-
   const char* path = LittleFS.exists("/settings.json") ? "/settings.json" : "/data/settings.json";
   if (!LittleFS.exists(path)) return;
 
@@ -91,7 +84,6 @@ void HostMonitor::loadSettings() {
 }
 
 void HostMonitor::saveSettings() {
-  if (!LittleFS.begin()) return;
   File f = LittleFS.open("/settings.json", "w");
   if (!f) {
     f = LittleFS.open("/data/settings.json", "w");
@@ -127,6 +119,15 @@ void HostMonitor::addHost(const String &name, const String &host) {
   saveHosts();
 }
 
+bool HostMonitor::removeHost(uint16_t id) {
+  auto it = std::find_if(s_hosts.begin(), s_hosts.end(),
+                          [id](const HostEntry &h) { return h.id == id; });
+  if (it == s_hosts.end()) return false;
+  s_hosts.erase(it);
+  saveHosts();
+  return true;
+}
+
 void HostMonitor::saveBrightness(uint8_t b) {
   s_settings.brightness = b;
   saveSettings();
@@ -160,4 +161,3 @@ void HostMonitor::loop() {
 const std::vector<HostEntry>& HostMonitor::getHosts() {
   return s_hosts;
 }
-

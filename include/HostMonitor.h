@@ -24,6 +24,7 @@ public:
   static void loop();
   static const std::vector<HostEntry>& getHosts();
   static void addHost(const String &name, const String &host);
+  static bool removeHost(uint16_t id);
   static Settings getSettings();
   static void saveBrightness(uint8_t b);
 private:

@@ -11,17 +11,21 @@
 
   <section id="hosts">
     <h2>Monitored Hosts</h2>
-    <ul id="hostList"></ul>
     <form id="addHostForm">
       <input id="name" placeholder="Name" required>
       <input id="host" placeholder="Host or IP" required>
       <button>Add Host</button>
     </form>
+    <ul id="hostList"></ul>
   </section>
 
   <section id="settings">
     <h2>Settings</h2>
-    <label>Brightness <input id="brightness" type="range" min="0" max="255"></label>
+    <label>
+      Brightness
+      <input id="brightness" type="range" min="0" max="255" value="255">
+      <span id="brightnessValue">255</span>
+    </label>
     <button id="saveSettings">Save</button>
   </section>
 

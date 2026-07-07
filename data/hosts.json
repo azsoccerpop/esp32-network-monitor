@@ -2,7 +2,7 @@
   {
     "id": 1,
     "name": "router",
-    "host": "192.168.1.1",
+    "host": "10.51.201.1",
     "enabled": true
   }
 ]
