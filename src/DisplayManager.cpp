@@ -1,8 +1,8 @@
 #include "DisplayManager.h"
 #include <Arduino.h>
-
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <WiFi.h>
 #include "HostMonitor.h"
 
 static constexpr uint8_t kSdaPin = 21;
@@ -34,7 +34,20 @@ static bool s_ready = false;
 
 static void drawHeader() {
   display.setFont(u8g2_font_helvR08_tr);
-  display.drawStr(0, kHeaderY, "Network Monitor");
+  display.drawStr(0, kHeaderY, "NetMon");
+
+  // Right-justify the IP (or connection status) against the right margin,
+  // same approach drawHostRow uses for latency, so it stays clear of the
+  // label regardless of exact string width.
+  char ipBuf[16] = "No WiFi";
+  if (WiFi.status() == WL_CONNECTED) {
+    const IPAddress ip = WiFi.localIP();
+    snprintf(ipBuf, sizeof(ipBuf), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+  }
+  const uint8_t ipW = display.getStrWidth(ipBuf);
+  const uint8_t ipX = (ipW + kRightMargin < kScreenWidth) ? (kScreenWidth - kRightMargin - ipW) : 0;
+  display.drawStr(ipX, kHeaderY, ipBuf);
+
   display.drawHLine(0, kHeaderRuleY, kScreenWidth);
 }
 
