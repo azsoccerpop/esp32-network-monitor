@@ -5,6 +5,7 @@
 #include <AsyncJson.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <ElegantOTA.h>
 #include "HostMonitor.h"
 #include "DisplayManager.h"
 
@@ -118,10 +119,16 @@ void WebInterface::begin() {
   settingsPost->setMethod(HTTP_POST);
   server.addHandler(settingsPost);
 
+  // Registers GET/POST handlers at /update for firmware & filesystem OTA
+  // uploads, using its own bundled UI. Uncomment setAuth() below to require
+  // a login before an upload is accepted.
+  ElegantOTA.begin(&server);
+  // ElegantOTA.setAuth("admin", "changeme");
+
   server.begin();
   Serial.println("WebInterface: server started on port 80");
 }
 
 void WebInterface::loop() {
-  // nothing to do here for AsyncWebServer
+  ElegantOTA.loop();
 }
