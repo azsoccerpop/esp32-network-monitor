@@ -34,7 +34,7 @@ static bool s_ready = false;
 
 static void drawHeader() {
   display.setFont(u8g2_font_helvR08_tr);
-  display.drawStr(0, kHeaderY, "NetMon");
+  display.drawStr(0, kHeaderY, "HomeLab");
 
   // Right-justify the IP (or connection status) against the right margin,
   // same approach drawHostRow uses for latency, so it stays clear of the
@@ -77,7 +77,7 @@ static void drawHostRow(uint8_t y, const HostEntry &h, bool blinkOn) {
 void DisplayManager::begin() {
   Serial.println("DisplayManager: begin");
   Wire.begin(kSdaPin, kSclPin);
-  Wire.setClock(400000);
+  Wire.setClock(100000);
 
   display.setI2CAddress(kDisplayI2cAddress << 1);
   if (!display.begin()) {
