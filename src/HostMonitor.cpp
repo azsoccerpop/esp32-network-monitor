@@ -8,18 +8,29 @@
 static std::vector<HostEntry> s_hosts;
 static Settings s_settings;
 static uint32_t s_lastPingMs = 0;
+// Monotonically increasing counter for host IDs. Recomputed on load from the
+// max ID actually present in hosts.json (see loadHosts()), then only ever
+// incremented -- never reused -- so IDs stay stable across reboots and can't
+// collide with a stale ID the web UI might still be holding.
+static uint16_t s_nextId = 1;
+static HostsLoadStatus s_hostsLoadStatus = HostsLoadStatus::Ok;
 
 void HostMonitor::loadHosts() {
   s_hosts.clear();
+  s_nextId = 1;
 
   const char* path = LittleFS.exists("/hosts.json") ? "/hosts.json" : "/data/hosts.json";
   if (!LittleFS.exists(path)) {
     Serial.println("hosts.json not found, using defaults");
+    s_hostsLoadStatus = HostsLoadStatus::FileNotFound;
     return;
   }
 
   File f = LittleFS.open(path, "r");
-  if (!f) return;
+  if (!f) {
+    s_hostsLoadStatus = HostsLoadStatus::FileNotFound;
+    return;
+  }
   size_t size = f.size();
   std::unique_ptr<char[]> buf(new char[size+1]);
   f.readBytes(buf.get(), size);
@@ -28,12 +39,22 @@ void HostMonitor::loadHosts() {
   DeserializationError err = deserializeJson(doc, buf.get());
   if (err) {
     Serial.println("Failed to parse hosts.json");
+    s_hostsLoadStatus = HostsLoadStatus::ParseError;
     return;
   }
-  uint16_t id = 1;
+  s_hostsLoadStatus = HostsLoadStatus::Ok;
   for (JsonObject obj : doc.as<JsonArray>()) {
     HostEntry h;
-    h.id = id++;
+    // Preserve the persisted id so ids stay stable across reboots. Fall back
+    // to the next available id only if this entry doesn't have one (e.g. a
+    // hand-edited or older hosts.json).
+    h.id = obj["id"] | 0;
+    if (h.id == 0) {
+      h.id = s_nextId;
+    }
+    if (h.id >= s_nextId) {
+      s_nextId = h.id + 1;
+    }
     const char* name = obj["name"] | "";
     const char* host = obj["host"] | "";
     h.name = String(name);
@@ -109,7 +130,7 @@ void HostMonitor::begin() {
 void HostMonitor::addHost(const String &name, const String &host) {
   if (s_hosts.size() >= s_settings.max_hosts) return;
   HostEntry h;
-  h.id = s_hosts.size() ? (s_hosts.back().id + 1) : 1;
+  h.id = s_nextId++;
   h.name = name;
   h.host = host;
   h.enabled = true;
@@ -160,4 +181,8 @@ void HostMonitor::loop() {
 
 const std::vector<HostEntry>& HostMonitor::getHosts() {
   return s_hosts;
+}
+
+HostsLoadStatus HostMonitor::getHostsLoadStatus() {
+  return s_hostsLoadStatus;
 }

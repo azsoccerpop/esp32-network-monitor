@@ -18,11 +18,20 @@ struct Settings {
   uint16_t max_hosts = MAX_HOSTS;
 };
 
+// Outcome of the last attempt to load hosts.json, so callers (e.g. the OLED
+// display) can tell an intentionally-empty list apart from a failed load.
+enum class HostsLoadStatus {
+  Ok,
+  FileNotFound,
+  ParseError
+};
+
 class HostMonitor {
 public:
   static void begin();
   static void loop();
   static const std::vector<HostEntry>& getHosts();
+  static HostsLoadStatus getHostsLoadStatus();
   static void addHost(const String &name, const String &host);
   static bool removeHost(uint16_t id);
   static Settings getSettings();
