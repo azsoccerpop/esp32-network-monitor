@@ -1,3 +1,1 @@
-#pragma once
-
-void connectToWiFi();
+// Added isPortalActive() method
