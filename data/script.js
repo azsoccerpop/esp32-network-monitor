@@ -69,8 +69,27 @@ async function loadSettings() {
   }
 }
 
+async function loadLogs() {
+  const paused = document.getElementById('logPaused').checked;
+  if (paused) return;
+
+  try {
+    const lines = await fetchJSON('/api/logs');
+    const view = document.getElementById('logView');
+    view.textContent = lines.join('\n');
+
+    if (document.getElementById('logAutoscroll').checked) {
+      view.scrollTop = view.scrollHeight;
+    }
+  } catch (err) {
+    console.error('Failed to load logs', err);
+  }
+}
+
 window.addEventListener('load', () => {
   loadHosts();
   loadSettings();
+  loadLogs();
   setInterval(loadHosts, 3000);
+  setInterval(loadLogs, 2000);
 });

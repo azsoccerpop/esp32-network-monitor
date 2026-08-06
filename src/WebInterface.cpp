@@ -8,6 +8,7 @@
 #include <ElegantOTA.h>
 #include "HostMonitor.h"
 #include "DisplayManager.h"
+#include "Logger.h"
 
 static AsyncWebServer server(80);
 
@@ -102,12 +103,17 @@ static void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json
   request->send(200, "application/json", "{\"ok\":true}");
 }
 
+static void handleGetLogs(AsyncWebServerRequest *request) {
+  request->send(200, "application/json", Logger::getLogsJson());
+}
+
 void WebInterface::begin() {
   Serial.println("WebInterface: begin");
 
   serveStaticFiles();
 
   server.on("/api/hosts", HTTP_GET, handleGetHosts);
+  server.on("/api/logs", HTTP_GET, handleGetLogs);
   server.on("/api/hosts", HTTP_DELETE, handleDeleteHost);
   server.on("/api/settings", HTTP_GET, handleGetSettings);
 
