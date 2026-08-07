@@ -24,6 +24,20 @@ static constexpr uint32_t kPageIntervalMs = 3000;
 static constexpr uint32_t kBlinkIntervalMs = 250;
 static constexpr uint32_t kReinitIntervalMs = 5UL * 60UL * 1000UL;
 
+// --- I2C bus health / recovery ---------------------------------------------
+// If electrical noise corrupts an I2C transaction at the wrong moment, a
+// device can be left holding SDA low, wedging the bus permanently -- no
+// future transaction (including display.begin() re-inits) can succeed until
+// something manually clocks SCL to force the stuck device to release SDA.
+// This is what was causing corruption to "never self-correct" without a long
+// unplug: only fully removing power let the OLED's own capacitors discharge
+// enough to reset it. We now detect this automatically and recover in
+// seconds instead of requiring a manual power cycle.
+static constexpr uint32_t kHealthCheckIntervalMs = 2000;
+static constexpr uint8_t kConsecutiveFailuresBeforeRecovery = 3;
+static uint32_t s_lastHealthCheckMs = 0;
+static uint8_t s_consecutiveFailures = 0;
+
 static constexpr uint8_t kNameX = 0;
 static constexpr uint8_t kStatusX = 62;
 static constexpr uint8_t kRightMargin = 2;
@@ -88,6 +102,58 @@ static void drawEmptyHostsMessage() {
   display.drawStr(kNameX, kFirstHostY + kHostLineHeight, line2);
 }
 
+// Bit-bangs up to 9 SCL clock pulses (the max an I2C slave could ever be
+// waiting on mid-byte) to coax a wedged slave into releasing SDA, then
+// issues a manual STOP condition. This is the standard I2C bus recovery
+// routine; see NXP's I2C-bus specification, section on bus recovery.
+// Returns true if both lines read high (bus idle) afterward.
+static bool recoverI2CBus(uint8_t sdaPin, uint8_t sclPin) {
+  Wire.end();
+
+  pinMode(sclPin, OUTPUT);
+  pinMode(sdaPin, INPUT_PULLUP);
+  digitalWrite(sclPin, HIGH);
+  delayMicroseconds(5);
+
+  for (uint8_t i = 0; i < 9; ++i) {
+    if (digitalRead(sdaPin) == HIGH) break;  // slave released SDA, done clocking
+    digitalWrite(sclPin, LOW);
+    delayMicroseconds(5);
+    digitalWrite(sclPin, HIGH);
+    delayMicroseconds(5);
+  }
+
+  // Manually issue a STOP condition: SDA low-to-high while SCL is high.
+  pinMode(sdaPin, OUTPUT);
+  digitalWrite(sdaPin, LOW);
+  delayMicroseconds(5);
+  digitalWrite(sclPin, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(sdaPin, HIGH);
+  delayMicroseconds(5);
+
+  pinMode(sdaPin, INPUT_PULLUP);
+  pinMode(sclPin, INPUT_PULLUP);
+  delayMicroseconds(5);
+
+  return digitalRead(sdaPin) == HIGH && digitalRead(sclPin) == HIGH;
+}
+
+// Cheap I2C health check: a zero-length transmission just tests whether the
+// display ACKs its address. No corrupted-content risk (unlike sendBuffer())
+// and cheap enough to run every couple seconds without hurting frame rate.
+static bool isDisplayResponding() {
+  Wire.beginTransmission(kDisplayI2cAddress);
+  return Wire.endTransmission() == 0;
+}
+
+static void reinitDisplay() {
+  Wire.begin(kSdaPin, kSclPin);
+  Wire.setClock(100000);
+  display.begin();
+  display.setContrast(g_brightness);
+}
+
 void DisplayManager::begin() {
   Serial.println("DisplayManager: begin");
   Wire.begin(kSdaPin, kSclPin);
@@ -115,6 +181,33 @@ void DisplayManager::loop() {
   if (!s_ready) return;
 
   const uint32_t now = millis();
+
+  // Fast fault detection: check the bus is actually responding every couple
+  // seconds. If it's failed several checks in a row (a single blip can be
+  // transient noise, so we don't overreact to one failure), the bus is
+  // almost certainly wedged -- recover it immediately rather than waiting
+  // for the slow periodic reinit below, which can't fix a stuck bus anyway
+  // since it just re-sends commands over an already-jammed bus.
+  if (now - s_lastHealthCheckMs >= kHealthCheckIntervalMs) {
+    s_lastHealthCheckMs = now;
+    if (isDisplayResponding()) {
+      s_consecutiveFailures = 0;
+    } else {
+      ++s_consecutiveFailures;
+      Logger::log("DisplayManager: I2C health check failed (" +
+                   String(s_consecutiveFailures) + " consecutive)");
+      if (s_consecutiveFailures >= kConsecutiveFailuresBeforeRecovery) {
+        Logger::log("DisplayManager: I2C bus appears stuck, attempting recovery");
+        const bool recovered = recoverI2CBus(kSdaPin, kSclPin);
+        Logger::log(String("DisplayManager: bus recovery ") + (recovered ? "succeeded" : "FAILED") +
+                     ", reinitializing display");
+        reinitDisplay();
+        s_lastReinitMs = now;
+        s_consecutiveFailures = 0;
+      }
+    }
+  }
+
   if (now - s_lastReinitMs >= kReinitIntervalMs) {
     s_lastReinitMs = now;
     Logger::log("DisplayManager: periodic reinit");
