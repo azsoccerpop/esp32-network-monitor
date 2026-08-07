@@ -66,7 +66,9 @@ document.getElementById('resetWifi').addEventListener('click', async () => {
 
   try {
     await fetch('/api/wifi/reset', {method: 'POST'});
-    alert('NETMON_SETUP portal is opening. Connect to it from your phone/laptop to reconfigure WiFi -- this page will stop responding once the device disconnects.');
+    alert('NETMON_SETUP portal is opening. Connect to it from your phone/laptop, ' +
+          'then browse to http://192.168.4.1:8080 to reconfigure WiFi ' +
+          '(it may not auto-launch on this port) -- this page will stop responding once the device disconnects.');
   } catch (err) {
     console.error('Failed to request WiFi reset', err);
     alert('Failed to request WiFi reset -- device may already be unreachable.');

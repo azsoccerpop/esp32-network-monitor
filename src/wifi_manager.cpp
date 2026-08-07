@@ -82,7 +82,16 @@ String WifiManager::getLocalIP() {
 void WifiManager::startConfigPortal() {
   Logger::log("WifiManager: config portal manually requested");
   wm.setConfigPortalBlocking(false);
+  // The main WebInterface (ESPAsyncWebServer) is already bound to port 80
+  // at this point -- unlike the first-boot autoConnect() path, where it
+  // runs before WebInterface starts. Starting WiFiManager's own internal
+  // server on 80 here caused a port conflict severe enough to crash/reboot
+  // the device. Using a different port avoids that entirely.
+  wm.setHttpPort(8080);
   wm.startConfigPortal("NETMON_SETUP");
+  Logger::log("WifiManager: portal server on port 8080 -- browse to "
+               "http://192.168.4.1:8080 after connecting to NETMON_SETUP "
+               "(auto-launch may not trigger on this port)");
 }
 
 bool WifiManager::isPortalActive() {
