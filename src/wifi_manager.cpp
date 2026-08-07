@@ -80,7 +80,20 @@ String WifiManager::getLocalIP() {
 }
 
 void WifiManager::startConfigPortal() {
-  Logger::log("WifiManager: config portal manually requested");
+  Logger::log("WifiManager: WiFi reset requested -- clearing saved credentials before opening portal");
+
+  // Two separate layers persist credentials on ESP32, and both need
+  // clearing or the device silently falls back to the known network instead
+  // of actually waiting in the portal:
+  //  1. WiFiManager's own saved config (its NVS namespace)
+  //  2. The ESP32 radio's own internal persistence (WiFi.persistent(true)
+  //     is on by default in Arduino-ESP32, independent of WiFiManager) --
+  //     this is what caused the very first portal test to silently
+  //     reconnect on its own too.
+  wm.resetSettings();
+  WiFi.disconnect(/*wifioff=*/true, /*eraseap=*/true);
+  delay(100);
+
   wm.setConfigPortalBlocking(false);
   // The main WebInterface (ESPAsyncWebServer) is already bound to port 80
   // at this point -- unlike the first-boot autoConnect() path, where it

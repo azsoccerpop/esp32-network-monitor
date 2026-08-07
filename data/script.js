@@ -59,8 +59,9 @@ document.getElementById('saveSettings').addEventListener('click', async () => {
 
 document.getElementById('resetWifi').addEventListener('click', async () => {
   const confirmed = confirm(
-    'This opens the NETMON_SETUP WiFi portal and disconnects the device from its current network. ' +
-    'You\'ll need to connect to NETMON_SETUP and reconfigure it. Continue?'
+    'This erases the device\'s saved WiFi credentials and opens the NETMON_SETUP portal. ' +
+    'The device will NOT automatically reconnect to your current network -- ' +
+    'you must complete setup via the portal or it stays disconnected. Continue?'
   );
   if (!confirmed) return;
 
