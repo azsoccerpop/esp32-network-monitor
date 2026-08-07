@@ -23,11 +23,11 @@ void setup() {
     Logger::log("LittleFS mount failed -- host/settings persistence and web assets will be unavailable");
   }
 
-  connectToWiFi();
+  WifiManager::begin();
   if (WiFi.status() == WL_CONNECTED) {
     Logger::log("WiFi connected, RSSI: " + String(WiFi.RSSI()) + " dBm, IP: " + WiFi.localIP().toString());
   } else {
-    Logger::log("WiFi NOT connected after connectToWiFi()");
+    Logger::log("WiFi not yet connected -- NETMON_SETUP portal may be active, or still connecting");
   }
 
   HostMonitor::begin();
@@ -36,6 +36,7 @@ void setup() {
 }
 
 void loop() {
+  WifiManager::loop();
   HostMonitor::loop();
   WebInterface::loop();
   DisplayManager::loop();

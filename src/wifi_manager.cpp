@@ -1,13 +1,21 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiManager.h>  // tzapu/WiFiManager library -- note capital "WiFi",
+                           // distinct from this project's own WifiManager
+                           // class declared in wifi_manager.h.
 #include "wifi_credentials.h"
 #include "wifi_manager.h"
+#include "Logger.h"
 
 namespace {
 void printWiFiStatus() {
   Serial.print("WiFi status: ");
   Serial.println(WiFi.status());
 }
+
+// The library instance that actually does the work. Kept file-local so
+// nothing outside this file depends on the library directly.
+WiFiManager wm;
 }  // namespace
 
 void connectToWiFi() {
@@ -35,27 +43,32 @@ void connectToWiFi() {
   printWiFiStatus();
 }
 
-// --- WifiManager class stubs -----------------------------------------------
-// TODO(wifimanager-migration): these are placeholders so the build links
-// while DisplayManager references WifiManager::isPortalActive(). The class
-// is declared in wifi_manager.h as the intended replacement for the
-// hardcoded-credentials connectToWiFi() above, using the tzapu/WiFiManager
-// captive-portal library (already in platformio.ini). Not implemented yet --
-// tracked as a separate follow-up so it doesn't get tangled up with the
-// display-corruption fix / log viewer work on this branch. Until then,
-// behavior is unchanged: no portal, isPortalActive() always false.
-
-bool WifiManager::isPortalActive() {
-  return false;
-}
+// --- WifiManager (captive portal) ------------------------------------------
 
 void WifiManager::begin() {
-  // Not yet implemented -- connectToWiFi() above is still what's actually
-  // called from main.cpp.
+  // Non-blocking: if saved credentials fail (or none exist), autoConnect()
+  // starts the config portal and returns immediately rather than blocking
+  // setup() forever -- HostMonitor/DisplayManager/WebInterface all keep
+  // running via WifiManager::loop() while the portal is open.
+  wm.setConfigPortalBlocking(false);
+
+  // Portal AP name. Open (no password) for now -- add a password via
+  // autoConnect("NETMON_SETUP", "somepassword") if you want to require one.
+  const bool connected = wm.autoConnect("NETMON_SETUP");
+
+  if (connected) {
+    Logger::log("WifiManager: connected using saved credentials, IP: " +
+                 WiFi.localIP().toString());
+  } else {
+    Logger::log("WifiManager: no valid saved credentials -- NETMON_SETUP "
+                 "portal is open for configuration");
+  }
 }
 
 void WifiManager::loop() {
-  // Not yet implemented.
+  // Services the portal's captive web server when active. Cheap/no-op when
+  // the portal isn't running and we're already connected.
+  wm.process();
 }
 
 bool WifiManager::isConnected() {
@@ -67,19 +80,11 @@ String WifiManager::getLocalIP() {
 }
 
 void WifiManager::startConfigPortal() {
-  // Not yet implemented.
+  Logger::log("WifiManager: config portal manually requested");
+  wm.setConfigPortalBlocking(false);
+  wm.startConfigPortal("NETMON_SETUP");
 }
 
-void WifiManager::loadWifiSettings() {
-  // Not yet implemented.
-}
-
-void WifiManager::saveWifiSettings(const String& ssid, const String& password) {
-  (void)ssid;
-  (void)password;
-  // Not yet implemented.
-}
-
-bool WifiManager::tryConnect() {
-  return WiFi.status() == WL_CONNECTED;
+bool WifiManager::isPortalActive() {
+  return wm.getConfigPortalActive();
 }

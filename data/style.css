@@ -93,3 +93,29 @@ a {
   gap: 4px;
   cursor: pointer;
 }
+
+.wifiReset {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd;
+}
+
+button.danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.danger:hover {
+  background: #a93226;
+}
+
+.wifiReset .hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 6px;
+  max-width: 320px;
+}

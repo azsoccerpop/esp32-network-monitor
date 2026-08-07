@@ -23,10 +23,15 @@
     <h2>Settings</h2>
     <label>
       Brightness
-      <input id="brightness" type="range" min="0" max="255" value="255">
-      <span id="brightnessValue">255</span>
+      <input id="brightness" type="range" min="0" max="100" value="100">
+      <span id="brightnessValue">100%</span>
     </label>
     <button id="saveSettings">Save</button>
+
+    <div class="wifiReset">
+      <button id="resetWifi" class="danger">Reset WiFi</button>
+      <p class="hint">Opens the NETMON_SETUP portal so you can reconfigure which network the device connects to. The device will drop off this network until reconfigured.</p>
+    </div>
   </section>
 
   <section id="ota">

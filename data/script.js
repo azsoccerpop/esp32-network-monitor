@@ -39,33 +39,54 @@ document.getElementById('addHostForm').addEventListener('submit', async (e) => {
   loadHosts();
 });
 
-function setBrightnessUI(value) {
-  document.getElementById('brightness').value = value;
-  document.getElementById('brightnessValue').textContent = value;
+function setBrightnessUI(percent) {
+  document.getElementById('brightness').value = percent;
+  document.getElementById('brightnessValue').textContent = `${percent}%`;
 }
 
 document.getElementById('brightness').addEventListener('input', (e) => {
-  document.getElementById('brightnessValue').textContent = e.target.value;
+  document.getElementById('brightnessValue').textContent = `${e.target.value}%`;
 });
 
 document.getElementById('saveSettings').addEventListener('click', async () => {
-  const b = parseInt(document.getElementById('brightness').value, 10);
-  await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({brightness: b})});
+  const percent = parseInt(document.getElementById('brightness').value, 10);
+  // Wire format / storage is still 0-255 (matches the OLED contrast API and
+  // avoids a settings.json migration); the slider itself is percent-based
+  // since that's what actually makes sense to a person setting brightness.
+  const raw = Math.round((percent / 100) * 255);
+  await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({brightness: raw})});
 });
 
-// Default of 255 (max contrast) is used whenever the current brightness
+document.getElementById('resetWifi').addEventListener('click', async () => {
+  const confirmed = confirm(
+    'This opens the NETMON_SETUP WiFi portal and disconnects the device from its current network. ' +
+    'You\'ll need to connect to NETMON_SETUP and reconfigure it. Continue?'
+  );
+  if (!confirmed) return;
+
+  try {
+    await fetch('/api/wifi/reset', {method: 'POST'});
+    alert('NETMON_SETUP portal is opening. Connect to it from your phone/laptop to reconfigure WiFi -- this page will stop responding once the device disconnects.');
+  } catch (err) {
+    console.error('Failed to request WiFi reset', err);
+    alert('Failed to request WiFi reset -- device may already be unreachable.');
+  }
+});
+
+// Default of 100% (max contrast) is used whenever the current brightness
 // can't be determined -- request failure, malformed response, or a
 // missing/non-numeric brightness field.
-const DEFAULT_BRIGHTNESS = 255;
+const DEFAULT_BRIGHTNESS_PERCENT = 100;
 
 async function loadSettings() {
   try {
     const s = await fetchJSON('/api/settings');
-    const value = (s && typeof s.brightness === 'number') ? s.brightness : DEFAULT_BRIGHTNESS;
-    setBrightnessUI(value);
+    const raw = (s && typeof s.brightness === 'number') ? s.brightness : 255;
+    const percent = Math.round((raw / 255) * 100);
+    setBrightnessUI(percent);
   } catch (err) {
     console.error('Failed to load settings, defaulting to max contrast', err);
-    setBrightnessUI(DEFAULT_BRIGHTNESS);
+    setBrightnessUI(DEFAULT_BRIGHTNESS_PERCENT);
   }
 }
 

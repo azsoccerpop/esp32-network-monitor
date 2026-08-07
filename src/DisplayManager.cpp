@@ -69,7 +69,7 @@ static void drawHeader() {
 static void drawPortalPrompt() {
   display.setFont(u8g2_font_helvR08_tr);
   display.drawStr(0, 20, "Connect to:");
-  display.drawStr(0, 32, "ESP-NetMon-Setup");
+  display.drawStr(0, 32, "NETMON_SETUP");
   display.drawStr(0, 44, "Open browser");
   display.drawStr(0, 56, "to configure");
 }
@@ -147,11 +147,24 @@ static bool isDisplayResponding() {
   return Wire.endTransmission() == 0;
 }
 
+// setContrast() alone can't produce true black -- even at its minimum value
+// the SH1106 still drives lit pixels at low current, so the screen stays
+// faintly visible. setPowerSave(1) puts the controller in actual sleep mode
+// instead, which is what "0%" on the web UI slider should mean.
+static void applyBrightness(uint8_t b) {
+  if (b == 0) {
+    display.setPowerSave(1);
+  } else {
+    display.setPowerSave(0);
+    display.setContrast(b);
+  }
+}
+
 static void reinitDisplay() {
   Wire.begin(kSdaPin, kSclPin);
   Wire.setClock(100000);
   display.begin();
-  display.setContrast(g_brightness);
+  applyBrightness(g_brightness);
 }
 
 void DisplayManager::begin() {
@@ -182,7 +195,7 @@ void DisplayManager::begin() {
 
   const auto s = HostMonitor::getSettings();
   g_brightness = s.brightness;
-  display.setContrast(g_brightness);
+  applyBrightness(g_brightness);
 
   display.clearBuffer();
   drawHeader();
@@ -224,13 +237,13 @@ void DisplayManager::loop() {
     s_lastReinitMs = now;
     Logger::log("DisplayManager: periodic reinit");
     display.begin();
-    display.setContrast(g_brightness);
+    applyBrightness(g_brightness);
   }
 
   if (s_brightnessChangePending) {
     s_brightnessChangePending = false;
     g_brightness = s_pendingBrightness;
-    display.setContrast(g_brightness);
+    applyBrightness(g_brightness);
   }
 
   display.clearBuffer();

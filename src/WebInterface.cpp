@@ -9,6 +9,7 @@
 #include "HostMonitor.h"
 #include "DisplayManager.h"
 #include "Logger.h"
+#include "wifi_manager.h"
 
 static AsyncWebServer server(80);
 
@@ -107,6 +108,12 @@ static void handleGetLogs(AsyncWebServerRequest *request) {
   request->send(200, "application/json", Logger::getLogsJson());
 }
 
+static void handlePostWifiReset(AsyncWebServerRequest *request) {
+  Logger::log("WebInterface: WiFi reset requested via web UI, opening NETMON_SETUP portal");
+  WifiManager::startConfigPortal();
+  request->send(200, "application/json", "{\"ok\":true}");
+}
+
 void WebInterface::begin() {
   Serial.println("WebInterface: begin");
 
@@ -116,6 +123,7 @@ void WebInterface::begin() {
   server.on("/api/logs", HTTP_GET, handleGetLogs);
   server.on("/api/hosts", HTTP_DELETE, handleDeleteHost);
   server.on("/api/settings", HTTP_GET, handleGetSettings);
+  server.on("/api/wifi/reset", HTTP_POST, handlePostWifiReset);
 
   auto *hostsPost = new AsyncCallbackJsonWebHandler("/api/hosts", handlePostHost);
   hostsPost->setMethod(HTTP_POST);
