@@ -3,49 +3,18 @@
 #include <WiFiManager.h>  // tzapu/WiFiManager library -- note capital "WiFi",
                            // distinct from this project's own WifiManager
                            // class declared in wifi_manager.h.
-#include "wifi_credentials.h"
 #include "wifi_manager.h"
 #include "Logger.h"
 
 namespace {
-void printWiFiStatus() {
-  Serial.print("WiFi status: ");
-  Serial.println(WiFi.status());
-}
+// Tracks portal active/inactive transitions so WifiManager::loop() can log
+// exactly once when it closes, rather than every loop iteration.
+bool s_wasPortalActive = false;
 
 // The library instance that actually does the work. Kept file-local so
 // nothing outside this file depends on the library directly.
 WiFiManager wm;
-
-// Tracks portal active/inactive transitions so WifiManager::loop() can log
-// exactly once when it closes, rather than every loop iteration.
-bool s_wasPortalActive = false;
 }  // namespace
-
-void connectToWiFi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  Serial.println("Connecting to WiFi...");
-  unsigned long start = millis();
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-
-    if (millis() - start > 20000) {
-      Serial.println();
-      Serial.println("WiFi connection timed out.");
-      return;
-    }
-  }
-
-  Serial.println();
-  Serial.println("WiFi connected.");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  printWiFiStatus();
-}
 
 // --- WifiManager (captive portal) ------------------------------------------
 

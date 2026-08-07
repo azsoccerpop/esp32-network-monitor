@@ -1,14 +1,10 @@
 #pragma once
 #include <Arduino.h>
 
-// Legacy hardcoded-credentials connect function. No longer called from
-// main.cpp now that WifiManager (below) handles connection + captive
-// portal, but left in place in case it's useful for a quick recovery build.
-void connectToWiFi();
-
 // Wraps tzapu/WiFiManager to provide:
 //  - automatic connect using previously-saved credentials (stored by the
-//    library itself in NVS, no wifi_credentials.h needed anymore)
+//    library itself in NVS -- wifi_credentials.h and the old hardcoded
+//    connect path have been removed, no longer needed)
 //  - if no saved credentials, or they fail, opens a captive-portal access
 //    point named NETMON_SETUP that any phone/laptop can join to configure
 //    WiFi via a browser page (auto-launched on most devices)
