@@ -161,12 +161,24 @@ void DisplayManager::begin() {
 
   display.setI2CAddress(kDisplayI2cAddress << 1);
   if (!display.begin()) {
-    Serial.println("DisplayManager: display.begin() failed");
-    return;
+    Logger::log("DisplayManager: display.begin() FAILED at startup -- display will stay blank. "
+                "Attempting one bus recovery + retry.");
+    const bool recovered = recoverI2CBus(kSdaPin, kSclPin);
+    Wire.begin(kSdaPin, kSclPin);
+    Wire.setClock(100000);
+    display.setI2CAddress(kDisplayI2cAddress << 1);
+    if (!recovered || !display.begin()) {
+      Logger::log("DisplayManager: retry after recovery also FAILED. Display disabled; "
+                   "will not attempt to draw. Check wiring/power -- this is not something "
+                   "software can recover from if the display never ACKs at all.");
+      return;
+    }
+    Logger::log("DisplayManager: recovered and initialized successfully on retry.");
   }
 
   s_ready = true;
   s_lastReinitMs = millis();
+  s_lastHealthCheckMs = millis();
 
   const auto s = HostMonitor::getSettings();
   g_brightness = s.brightness;
