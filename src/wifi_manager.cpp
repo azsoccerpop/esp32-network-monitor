@@ -16,6 +16,10 @@ void printWiFiStatus() {
 // The library instance that actually does the work. Kept file-local so
 // nothing outside this file depends on the library directly.
 WiFiManager wm;
+
+// Tracks portal active/inactive transitions so WifiManager::loop() can log
+// exactly once when it closes, rather than every loop iteration.
+bool s_wasPortalActive = false;
 }  // namespace
 
 void connectToWiFi() {
@@ -69,6 +73,23 @@ void WifiManager::loop() {
   // Services the portal's captive web server when active. Cheap/no-op when
   // the portal isn't running and we're already connected.
   wm.process();
+
+  // The web UI is unreachable for the whole time the portal is open (no
+  // WiFi to reach it over), so there's no way to watch this live -- but the
+  // log buffer survives the WiFi mode switch (no reboot happens here), so
+  // logging the outcome here means it's waiting for you once the device
+  // reconnects and the web UI comes back.
+  const bool active = wm.getConfigPortalActive();
+  if (s_wasPortalActive && !active) {
+    if (WiFi.status() == WL_CONNECTED) {
+      Logger::log("WifiManager: portal closed, connected to new network, IP: " +
+                   WiFi.localIP().toString());
+    } else {
+      Logger::log("WifiManager: portal closed without a successful connection "
+                   "(timed out or cancelled)");
+    }
+  }
+  s_wasPortalActive = active;
 }
 
 bool WifiManager::isConnected() {

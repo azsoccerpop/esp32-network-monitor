@@ -68,10 +68,10 @@ static void drawHeader() {
 
 static void drawPortalPrompt() {
   display.setFont(u8g2_font_helvR08_tr);
-  display.drawStr(0, 20, "Connect to:");
-  display.drawStr(0, 32, "NETMON_SETUP");
-  display.drawStr(0, 44, "Open browser");
-  display.drawStr(0, 56, "to configure");
+  display.drawStr(0, 14, "WiFi setup mode:");
+  display.drawStr(0, 27, "Join: NETMON_SETUP");
+  display.drawStr(0, 44, "Then browse to:");
+  display.drawStr(0, 57, "192.168.4.1:8080");
 }
 
 static void drawHostRow(uint8_t y, const HostEntry &h, bool blinkOn) {
