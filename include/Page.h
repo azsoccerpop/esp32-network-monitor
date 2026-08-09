@@ -24,4 +24,10 @@ public:
   // cleared the buffer and drawn the header before calling this, and will
   // call display.sendBuffer() after.
   virtual void draw(U8G2 &display) = 0;
+
+  // Whether DisplayManager should show the IP address in the header while
+  // this page is active. Only the network page wants it -- other pages'
+  // headers stay just the page name, since IP isn't relevant there and the
+  // header has limited width to share with longer page names.
+  virtual bool showIpInHeader() const { return false; }
 };

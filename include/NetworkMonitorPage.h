@@ -8,4 +8,5 @@ class NetworkMonitorPage : public Page {
 public:
   const char *name() const override { return "Network"; }
   void draw(U8G2 &display) override;
+  bool showIpInHeader() const override { return true; }
 };

@@ -45,33 +45,35 @@ static uint32_t s_lastReinitMs = 0;
 // compile time. Add new real pages by replacing a PlaceholderPage entry
 // here (or appending a new slot) once they're implemented.
 static NetworkMonitorPage s_networkMonitorPage;
-static PlaceholderPage s_driveUsagePage("Drive Usage");
-static PlaceholderPage s_systemInfoPage("System Info");
-static PlaceholderPage s_sensorsPage("Sensors");
-static PlaceholderPage s_alertsPage("Alerts");
+static PlaceholderPage s_page2("Page 2");
+static PlaceholderPage s_page3("Page 3");
+static PlaceholderPage s_page4("Page 4");
+static PlaceholderPage s_page5("Page 5");
 
 static Page *const kPages[] = {
     &s_networkMonitorPage,
-    &s_driveUsagePage,
-    &s_systemInfoPage,
-    &s_sensorsPage,
-    &s_alertsPage,
+    &s_page2,
+    &s_page3,
+    &s_page4,
+    &s_page5,
 };
 static constexpr size_t kNumPages = sizeof(kPages) / sizeof(kPages[0]);
 static size_t s_currentPageIndex = 0;
 
-static void drawHeader(const char *title) {
+static void drawHeader(const char *title, bool showIp) {
   display.setFont(u8g2_font_helvR08_tr);
   display.drawStr(0, kHeaderY, title);
 
-  char ipBuf[16] = "No WiFi";
-  if (WiFi.status() == WL_CONNECTED) {
-    const IPAddress ip = WiFi.localIP();
-    snprintf(ipBuf, sizeof(ipBuf), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+  if (showIp) {
+    char ipBuf[16] = "No WiFi";
+    if (WiFi.status() == WL_CONNECTED) {
+      const IPAddress ip = WiFi.localIP();
+      snprintf(ipBuf, sizeof(ipBuf), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+    }
+    const uint8_t ipW = display.getStrWidth(ipBuf);
+    const uint8_t ipX = (ipW + kRightMargin < kScreenWidth) ? (kScreenWidth - kRightMargin - ipW) : 0;
+    display.drawStr(ipX, kHeaderY, ipBuf);
   }
-  const uint8_t ipW = display.getStrWidth(ipBuf);
-  const uint8_t ipX = (ipW + kRightMargin < kScreenWidth) ? (kScreenWidth - kRightMargin - ipW) : 0;
-  display.drawStr(ipX, kHeaderY, ipBuf);
 
   display.drawHLine(0, kHeaderRuleY, kScreenWidth);
 }
@@ -182,7 +184,7 @@ void DisplayManager::begin() {
   kPages[s_currentPageIndex]->onSelect();
 
   display.clearBuffer();
-  drawHeader(kPages[s_currentPageIndex]->name());
+  drawHeader(kPages[s_currentPageIndex]->name(), kPages[s_currentPageIndex]->showIpInHeader());
   display.sendBuffer();
 }
 
@@ -233,11 +235,11 @@ void DisplayManager::loop() {
   display.clearBuffer();
 
   if (WifiManager::isPortalActive()) {
-    drawHeader("Setup");
+    drawHeader("Setup", false);
     drawPortalPrompt();
   } else {
     Page *page = kPages[s_currentPageIndex];
-    drawHeader(page->name());
+    drawHeader(page->name(), page->showIpInHeader());
     page->draw(display);
   }
 
