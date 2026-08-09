@@ -9,44 +9,92 @@
 <body>
   <h1>ESP32 Network Monitor</h1>
 
-  <section id="hosts">
-    <h2>Monitored Hosts</h2>
-    <form id="addHostForm">
-      <input id="name" placeholder="Name" required>
-      <input id="host" placeholder="Host or IP" required>
-      <button>Add Host</button>
-    </form>
-    <ul id="hostList"></ul>
-  </section>
+  <nav class="tabs">
+    <button class="tabBtn active" data-tab="home">Home</button>
+    <button class="tabBtn" data-tab="network">Network Monitor</button>
+    <button class="tabBtn" data-tab="driveUsage">Drive Usage</button>
+    <button class="tabBtn" data-tab="systemInfo">System Info</button>
+    <button class="tabBtn" data-tab="sensors">Sensors</button>
+    <button class="tabBtn" data-tab="alerts">Alerts</button>
+  </nav>
 
-  <section id="settings">
-    <h2>Settings</h2>
-    <label>
-      Brightness
-      <input id="brightness" type="range" min="0" max="100" value="100">
-      <span id="brightnessValue">100%</span>
-    </label>
-    <button id="saveSettings">Save</button>
+  <div class="tabContent active" id="tab-home">
+    <section id="settings">
+      <h2>Settings</h2>
+      <label>
+        Brightness
+        <input id="brightness" type="range" min="0" max="100" value="100">
+        <span id="brightnessValue">100%</span>
+      </label>
+      <button id="saveSettings">Save</button>
 
-    <div class="wifiReset">
-      <button id="resetWifi" class="danger">Reset WiFi</button>
-      <p class="hint">Opens the NETMON_SETUP portal so you can reconfigure which network the device connects to. The device will drop off this network until reconfigured.</p>
-    </div>
-  </section>
+      <div class="wifiReset">
+        <button id="resetWifi" class="danger">Reset WiFi</button>
+        <p class="hint">Opens the NETMON_SETUP portal so you can reconfigure which network the device connects to. The device will drop off this network until reconfigured.</p>
+      </div>
 
-  <section id="ota">
-    <h2>Firmware Update</h2>
-    <p>Firmware and filesystem updates are handled by <a href="/update">ElegantOTA</a>.</p>
-  </section>
+      <div class="pageNavTest">
+        <p class="hint">Temporary test controls (until the rotary encoder is wired up):</p>
+        <button id="prevPage">&larr; Prev Page</button>
+        <button id="nextPage">Next Page &rarr;</button>
+        <span id="currentPageLabel"></span>
+      </div>
+    </section>
 
-  <section id="logs">
-    <h2>Device Log</h2>
-    <div class="logControls">
-      <label><input type="checkbox" id="logAutoscroll" checked> Auto-scroll</label>
-      <label><input type="checkbox" id="logPaused"> Pause</label>
-    </div>
-    <pre id="logView"></pre>
-  </section>
+    <section id="ota">
+      <h2>Firmware Update</h2>
+      <p>Firmware and filesystem updates are handled by <a href="/update">ElegantOTA</a>.</p>
+    </section>
+
+    <section id="logs">
+      <h2>Device Log</h2>
+      <div class="logControls">
+        <label><input type="checkbox" id="logAutoscroll" checked> Auto-scroll</label>
+        <label><input type="checkbox" id="logPaused"> Pause</label>
+      </div>
+      <pre id="logView"></pre>
+    </section>
+  </div>
+
+  <div class="tabContent" id="tab-network">
+    <section id="hosts">
+      <h2>Monitored Hosts</h2>
+      <form id="addHostForm">
+        <input id="name" placeholder="Name" required>
+        <input id="host" placeholder="Host or IP" required>
+        <button>Add Host</button>
+      </form>
+      <ul id="hostList"></ul>
+    </section>
+  </div>
+
+  <div class="tabContent" id="tab-driveUsage">
+    <section>
+      <h2>Drive Usage</h2>
+      <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
+    </section>
+  </div>
+
+  <div class="tabContent" id="tab-systemInfo">
+    <section>
+      <h2>System Info</h2>
+      <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
+    </section>
+  </div>
+
+  <div class="tabContent" id="tab-sensors">
+    <section>
+      <h2>Sensors</h2>
+      <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
+    </section>
+  </div>
+
+  <div class="tabContent" id="tab-alerts">
+    <section>
+      <h2>Alerts</h2>
+      <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
+    </section>
+  </div>
 
   <script src="/script.js"></script>
 </body>

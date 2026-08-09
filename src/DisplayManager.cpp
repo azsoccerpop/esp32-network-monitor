@@ -4,24 +4,19 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <WiFi.h>
+#include "DisplayGeometry.h"
 #include "HostMonitor.h"
 #include "Logger.h"
+#include "NetworkMonitorPage.h"
+#include "Page.h"
+#include "PlaceholderPage.h"
 #include "wifi_manager.h"
+
+using namespace DisplayGeometry;
 
 static constexpr uint8_t kSdaPin = 21;
 static constexpr uint8_t kSclPin = 22;
 static constexpr uint8_t kDisplayI2cAddress = 0x3C;
-
-// Font and layout constants (same as original)
-static constexpr uint8_t kHeaderY = 8;
-static constexpr uint8_t kHeaderRuleY = 11;
-static constexpr uint8_t kFirstHostY = 23;
-static constexpr uint8_t kHostLineHeight = 12;
-static constexpr uint8_t kScreenWidth = 128;
-static constexpr uint8_t kScreenHeight = 64;
-static constexpr uint8_t kMaxVisibleHostLines = (kScreenHeight - kFirstHostY) / kHostLineHeight + 1;
-static constexpr uint32_t kPageIntervalMs = 3000;
-static constexpr uint32_t kBlinkIntervalMs = 250;
 static constexpr uint32_t kReinitIntervalMs = 5UL * 60UL * 1000UL;
 
 // --- I2C bus health / recovery ---------------------------------------------
@@ -38,11 +33,6 @@ static constexpr uint8_t kConsecutiveFailuresBeforeRecovery = 3;
 static uint32_t s_lastHealthCheckMs = 0;
 static uint8_t s_consecutiveFailures = 0;
 
-static constexpr uint8_t kNameX = 0;
-static constexpr uint8_t kStatusX = 62;
-static constexpr uint8_t kRightMargin = 2;
-static constexpr uint8_t kNameMaxChars = 8;
-
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 static uint8_t g_brightness = 255;
 static bool s_ready = false;
@@ -50,9 +40,29 @@ static volatile bool s_brightnessChangePending = false;
 static volatile uint8_t s_pendingBrightness = 255;
 static uint32_t s_lastReinitMs = 0;
 
-static void drawHeader() {
+// --- Page registry -----------------------------------------------------
+// Static allocation -- no dynamic memory, fixed set of pages known at
+// compile time. Add new real pages by replacing a PlaceholderPage entry
+// here (or appending a new slot) once they're implemented.
+static NetworkMonitorPage s_networkMonitorPage;
+static PlaceholderPage s_driveUsagePage("Drive Usage");
+static PlaceholderPage s_systemInfoPage("System Info");
+static PlaceholderPage s_sensorsPage("Sensors");
+static PlaceholderPage s_alertsPage("Alerts");
+
+static Page *const kPages[] = {
+    &s_networkMonitorPage,
+    &s_driveUsagePage,
+    &s_systemInfoPage,
+    &s_sensorsPage,
+    &s_alertsPage,
+};
+static constexpr size_t kNumPages = sizeof(kPages) / sizeof(kPages[0]);
+static size_t s_currentPageIndex = 0;
+
+static void drawHeader(const char *title) {
   display.setFont(u8g2_font_helvR08_tr);
-  display.drawStr(0, kHeaderY, "NetMon");
+  display.drawStr(0, kHeaderY, title);
 
   char ipBuf[16] = "No WiFi";
   if (WiFi.status() == WL_CONNECTED) {
@@ -72,34 +82,6 @@ static void drawPortalPrompt() {
   display.drawStr(0, 27, "Join: NETMON_SETUP");
   display.drawStr(0, 44, "Then browse to:");
   display.drawStr(0, 57, "192.168.4.1:8080");
-}
-
-static void drawHostRow(uint8_t y, const HostEntry &h, bool blinkOn) {
-  if (!h.reachable && !blinkOn) return;
-
-  display.setFont(h.reachable ? u8g2_font_helvR08_tr : u8g2_font_helvB08_tr);
-
-  char nameBuf[16];
-  snprintf(nameBuf, sizeof(nameBuf), "%.*s", kNameMaxChars, h.name.c_str());
-  display.drawStr(kNameX, y, nameBuf);
-
-  display.drawStr(kStatusX, y, h.reachable ? "UP" : "DOWN");
-
-  if (h.reachable) {
-    char latBuf[16];
-    snprintf(latBuf, sizeof(latBuf), "%lums", static_cast<unsigned long>(h.lastLatencyMs));
-    const uint8_t w = display.getStrWidth(latBuf);
-    const uint8_t x = (w + kRightMargin < kScreenWidth) ? (kScreenWidth - kRightMargin - w) : 0;
-    display.drawStr(x, y, latBuf);
-  }
-}
-
-static void drawEmptyHostsMessage() {
-  display.setFont(u8g2_font_helvR08_tr);
-  const char *line1 = "No hosts configured";
-  const char *line2 = "Add via web UI";
-  display.drawStr(kNameX, kFirstHostY, line1);
-  display.drawStr(kNameX, kFirstHostY + kHostLineHeight, line2);
 }
 
 // Bit-bangs up to 9 SCL clock pulses (the max an I2C slave could ever be
@@ -197,8 +179,10 @@ void DisplayManager::begin() {
   g_brightness = s.brightness;
   applyBrightness(g_brightness);
 
+  kPages[s_currentPageIndex]->onSelect();
+
   display.clearBuffer();
-  drawHeader();
+  drawHeader(kPages[s_currentPageIndex]->name());
   display.sendBuffer();
 }
 
@@ -247,25 +231,14 @@ void DisplayManager::loop() {
   }
 
   display.clearBuffer();
-  drawHeader();
 
   if (WifiManager::isPortalActive()) {
+    drawHeader("Setup");
     drawPortalPrompt();
-  } else if (HostMonitor::getHosts().empty()) {
-    drawEmptyHostsMessage();
   } else {
-    const auto &hosts = HostMonitor::getHosts();
-    const size_t numHosts = hosts.size();
-    const size_t numPages = (numHosts + kMaxVisibleHostLines - 1) / kMaxVisibleHostLines;
-    const size_t page = (numPages > 1) ? (millis() / kPageIntervalMs) % numPages : 0;
-    const size_t startIdx = page * kMaxVisibleHostLines;
-    const size_t endIdx = min(startIdx + kMaxVisibleHostLines, numHosts);
-    const bool blinkOn = ((millis() / kBlinkIntervalMs) % 2) == 0;
-
-    uint8_t row = 0;
-    for (size_t i = startIdx; i < endIdx; ++i, ++row) {
-      drawHostRow(kFirstHostY + row * kHostLineHeight, hosts[i], blinkOn);
-    }
+    Page *page = kPages[s_currentPageIndex];
+    drawHeader(page->name());
+    page->draw(display);
   }
 
   display.sendBuffer();
@@ -275,4 +248,20 @@ void DisplayManager::setBrightness(uint8_t b) {
   s_pendingBrightness = b;
   s_brightnessChangePending = true;
   HostMonitor::saveBrightness(b);
+}
+
+void DisplayManager::nextPage() {
+  s_currentPageIndex = (s_currentPageIndex + 1) % kNumPages;
+  kPages[s_currentPageIndex]->onSelect();
+  Logger::log(String("DisplayManager: switched to page '") + kPages[s_currentPageIndex]->name() + "'");
+}
+
+void DisplayManager::previousPage() {
+  s_currentPageIndex = (s_currentPageIndex + kNumPages - 1) % kNumPages;
+  kPages[s_currentPageIndex]->onSelect();
+  Logger::log(String("DisplayManager: switched to page '") + kPages[s_currentPageIndex]->name() + "'");
+}
+
+const char *DisplayManager::currentPageName() {
+  return kPages[s_currentPageIndex]->name();
 }

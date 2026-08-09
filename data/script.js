@@ -6,6 +6,15 @@ async function fetchJSON(path, opts) {
   return res.json();
 }
 
+document.querySelectorAll('.tabBtn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabBtn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tabContent').forEach((c) => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
 async function loadHosts() {
   const hosts = await fetchJSON('/api/hosts');
   const list = document.getElementById('hostList');
@@ -75,6 +84,20 @@ document.getElementById('resetWifi').addEventListener('click', async () => {
     alert('Failed to request WiFi reset -- device may already be unreachable.');
   }
 });
+
+// Temporary test controls, ahead of the physical rotary encoder existing.
+async function callPageNav(endpoint) {
+  try {
+    const result = await fetch(endpoint, {method: 'POST'});
+    const data = await result.json();
+    document.getElementById('currentPageLabel').textContent = `Now showing: ${data.page}`;
+  } catch (err) {
+    console.error('Failed to switch page', err);
+  }
+}
+
+document.getElementById('nextPage').addEventListener('click', () => callPageNav('/api/display/next-page'));
+document.getElementById('prevPage').addEventListener('click', () => callPageNav('/api/display/prev-page'));
 
 // Default of 100% (max contrast) is used whenever the current brightness
 // can't be determined -- request failure, malformed response, or a

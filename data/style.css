@@ -119,3 +119,57 @@ button.danger:hover {
   margin-top: 6px;
   max-width: 320px;
 }
+
+.pageNavTest {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #999;
+}
+
+.pageNavTest button {
+  padding: 6px 12px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+#currentPageLabel {
+  font-size: 13px;
+  color: #444;
+  margin-left: 8px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tabBtn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #555;
+}
+
+.tabBtn:hover {
+  color: #000;
+}
+
+.tabBtn.active {
+  color: #000;
+  border-bottom-color: #333;
+  font-weight: 600;
+}
+
+.tabContent {
+  display: none;
+}
+
+.tabContent.active {
+  display: block;
+}

@@ -114,6 +114,20 @@ static void handlePostWifiReset(AsyncWebServerRequest *request) {
   request->send(200, "application/json", "{\"ok\":true}");
 }
 
+// Temporary test controls, ahead of the physical rotary encoder existing --
+// lets page-switching be exercised end-to-end from the web UI in the
+// meantime. Remove once DisplayManager::nextPage()/previousPage() are wired
+// to real encoder input instead.
+static void handlePostDisplayNextPage(AsyncWebServerRequest *request) {
+  DisplayManager::nextPage();
+  request->send(200, "application/json", "{\"page\":\"" + String(DisplayManager::currentPageName()) + "\"}");
+}
+
+static void handlePostDisplayPrevPage(AsyncWebServerRequest *request) {
+  DisplayManager::previousPage();
+  request->send(200, "application/json", "{\"page\":\"" + String(DisplayManager::currentPageName()) + "\"}");
+}
+
 void WebInterface::begin() {
   Serial.println("WebInterface: begin");
 
@@ -124,6 +138,8 @@ void WebInterface::begin() {
   server.on("/api/hosts", HTTP_DELETE, handleDeleteHost);
   server.on("/api/settings", HTTP_GET, handleGetSettings);
   server.on("/api/wifi/reset", HTTP_POST, handlePostWifiReset);
+  server.on("/api/display/next-page", HTTP_POST, handlePostDisplayNextPage);
+  server.on("/api/display/prev-page", HTTP_POST, handlePostDisplayPrevPage);
 
   auto *hostsPost = new AsyncCallbackJsonWebHandler("/api/hosts", handlePostHost);
   hostsPost->setMethod(HTTP_POST);
