@@ -15,9 +15,9 @@ public:
   static void previousPage();
   static const char *currentPageName();
 
-  // pageNumber must be 2-5. Renames the corresponding placeholder page and
-  // takes effect immediately on the physical display -- no reboot needed.
-  // Called by WebInterface after persisting the new name via
-  // HostMonitor::savePageName().
-  static void setPageName(uint8_t pageNumber, const String &name);
+  // pageNumber must be 2-5. Re-reads name/format/widgets for the
+  // corresponding page from PageConfigStore and applies immediately on the
+  // physical display -- no reboot needed. Called by WebInterface after
+  // saving new page config.
+  static void reloadPageConfig(uint8_t pageNumber);
 };

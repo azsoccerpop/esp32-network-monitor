@@ -17,13 +17,9 @@ struct Settings {
   uint16_t ping_timeout_ms = DEFAULT_PING_TIMEOUT_MS;
   uint16_t max_hosts = MAX_HOSTS;
 
-  // User-configurable OLED page names for pages 2-5 (the Network page's
-  // name is fixed in code, not user-configurable). Defaults match the
-  // placeholder names shown before any customization.
-  String page2_name = "Page 2";
-  String page3_name = "Page 3";
-  String page4_name = "Page 4";
-  String page5_name = "Page 5";
+  // User-configurable OLED page names for pages 2-5 are stored separately
+  // in PageConfigStore (page_config.json), alongside their format and
+  // widget config -- not here.
 
   // InfluxDB connection settings. "version" is reserved for future 2.x
   // support (different auth model: token + org/bucket instead of
@@ -56,9 +52,6 @@ public:
   static bool removeHost(uint16_t id);
   static Settings getSettings();
   static void saveBrightness(uint8_t b);
-
-  // pageNumber must be 2-5. No-op (logged) on an out-of-range value.
-  static void savePageName(uint8_t pageNumber, const String &name);
 
   // password: pass an empty string to leave the currently-stored password
   // unchanged (lets the web UI submit the form without forcing the user to

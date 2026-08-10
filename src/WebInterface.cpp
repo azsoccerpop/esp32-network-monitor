@@ -11,6 +11,8 @@
 #include "Logger.h"
 #include "wifi_manager.h"
 #include "InfluxClient.h"
+#include "PageConfigStore.h"
+#include "MetricsManager.h"
 
 static AsyncWebServer server(80);
 
@@ -105,19 +107,33 @@ static void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json
   request->send(200, "application/json", "{\"ok\":true}");
 }
 
-static void handleGetPageNames(AsyncWebServerRequest *request) {
-  const auto s = HostMonitor::getSettings();
-  DynamicJsonDocument doc(512);
-  doc["page2"] = s.page2_name;
-  doc["page3"] = s.page3_name;
-  doc["page4"] = s.page4_name;
-  doc["page5"] = s.page5_name;
+static void handleGetPageConfig(AsyncWebServerRequest *request) {
+  if (!request->hasArg("page")) {
+    request->send(400, "application/json", "{\"error\":\"page query param required\"}");
+    return;
+  }
+  const uint8_t pageNumber = request->arg("page").toInt();
+  if (pageNumber < 2 || pageNumber > 5) {
+    request->send(400, "application/json", "{\"error\":\"page must be 2-5\"}");
+    return;
+  }
+  const PageConfig cfg = PageConfigStore::getPageConfig(pageNumber);
+  DynamicJsonDocument doc(1024);
+  doc["name"] = cfg.name;
+  doc["format"] = PageConfigStore::formatToString(cfg.format);
+  JsonArray widgets = doc.createNestedArray("widgets");
+  for (const auto &w : cfg.widgets) {
+    JsonObject wo = widgets.createNestedObject();
+    wo["label"] = w.label;
+    wo["query"] = w.query;
+    wo["field"] = w.field;
+  }
   String out;
   serializeJson(doc, out);
   request->send(200, "application/json", out);
 }
 
-static void handlePostPageName(AsyncWebServerRequest *request, JsonVariant &json) {
+static void handlePostPageMeta(AsyncWebServerRequest *request, JsonVariant &json) {
   if (!json.is<JsonObject>()) {
     request->send(400, "application/json", "{\"error\":\"invalid json\"}");
     return;
@@ -125,6 +141,7 @@ static void handlePostPageName(AsyncWebServerRequest *request, JsonVariant &json
   JsonObject obj = json.as<JsonObject>();
   const uint8_t pageNumber = obj["page"] | 0;
   const char *name = obj["name"] | "";
+  const char *format = obj["format"] | "table";
   if (pageNumber < 2 || pageNumber > 5) {
     request->send(400, "application/json", "{\"error\":\"page must be 2-5\"}");
     return;
@@ -139,9 +156,41 @@ static void handlePostPageName(AsyncWebServerRequest *request, JsonVariant &json
   if (nameStr.length() > 16) {
     nameStr = nameStr.substring(0, 16);
   }
-  HostMonitor::savePageName(pageNumber, nameStr);
-  DisplayManager::setPageName(pageNumber, nameStr);
+  PageConfigStore::savePageMeta(pageNumber, nameStr, PageConfigStore::formatFromString(format));
+  DisplayManager::reloadPageConfig(pageNumber);
   request->send(200, "application/json", "{\"ok\":true,\"name\":\"" + nameStr + "\"}");
+}
+
+static void handlePostPageWidgets(AsyncWebServerRequest *request, JsonVariant &json) {
+  if (!json.is<JsonObject>()) {
+    request->send(400, "application/json", "{\"error\":\"invalid json\"}");
+    return;
+  }
+  JsonObject obj = json.as<JsonObject>();
+  const uint8_t pageNumber = obj["page"] | 0;
+  if (pageNumber < 2 || pageNumber > 5) {
+    request->send(400, "application/json", "{\"error\":\"page must be 2-5\"}");
+    return;
+  }
+  JsonArray widgetsArr = obj["widgets"];
+  if (widgetsArr.isNull() || widgetsArr.size() != 4) {
+    request->send(400, "application/json", "{\"error\":\"widgets must be an array of exactly 4\"}");
+    return;
+  }
+  MetricWidget widgets[4];
+  uint8_t i = 0;
+  for (JsonObject wo : widgetsArr) {
+    widgets[i].label = String(wo["label"] | "");
+    widgets[i].query = String(wo["query"] | "");
+    widgets[i].field = String(wo["field"] | "");
+    ++i;
+  }
+  PageConfigStore::saveWidgets(pageNumber, widgets);
+  // Poll immediately so the OLED/web UI show fresh values right away rather
+  // than waiting up to a minute for the next scheduled background poll.
+  MetricsManager::refreshNow();
+  Logger::log("WebInterface: page " + String(pageNumber) + " widgets updated");
+  request->send(200, "application/json", "{\"ok\":true}");
 }
 
 static void handleGetInflux(AsyncWebServerRequest *request) {
@@ -234,7 +283,7 @@ void WebInterface::begin() {
   server.on("/api/logs", HTTP_GET, handleGetLogs);
   server.on("/api/hosts", HTTP_DELETE, handleDeleteHost);
   server.on("/api/settings", HTTP_GET, handleGetSettings);
-  server.on("/api/page-names", HTTP_GET, handleGetPageNames);
+  server.on("/api/page-config", HTTP_GET, handleGetPageConfig);
   server.on("/api/influx", HTTP_GET, handleGetInflux);
   server.on("/api/influx/test", HTTP_POST, handlePostInfluxTest);
   server.on("/api/wifi/reset", HTTP_POST, handlePostWifiReset);
@@ -249,9 +298,13 @@ void WebInterface::begin() {
   settingsPost->setMethod(HTTP_POST);
   server.addHandler(settingsPost);
 
-  auto *pageNamePost = new AsyncCallbackJsonWebHandler("/api/page-name", handlePostPageName);
-  pageNamePost->setMethod(HTTP_POST);
-  server.addHandler(pageNamePost);
+  auto *pageMetaPost = new AsyncCallbackJsonWebHandler("/api/page-meta", handlePostPageMeta);
+  pageMetaPost->setMethod(HTTP_POST);
+  server.addHandler(pageMetaPost);
+
+  auto *pageWidgetsPost = new AsyncCallbackJsonWebHandler("/api/page-widgets", handlePostPageWidgets);
+  pageWidgetsPost->setMethod(HTTP_POST);
+  server.addHandler(pageWidgetsPost);
 
   auto *influxPost = new AsyncCallbackJsonWebHandler("/api/influx", handlePostInflux);
   influxPost->setMethod(HTTP_POST);

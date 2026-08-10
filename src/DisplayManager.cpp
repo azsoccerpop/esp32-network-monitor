@@ -9,7 +9,8 @@
 #include "Logger.h"
 #include "NetworkMonitorPage.h"
 #include "Page.h"
-#include "PlaceholderPage.h"
+#include "MetricsPage.h"
+#include "PageConfigStore.h"
 #include "wifi_manager.h"
 
 using namespace DisplayGeometry;
@@ -42,13 +43,13 @@ static uint32_t s_lastReinitMs = 0;
 
 // --- Page registry -----------------------------------------------------
 // Static allocation -- no dynamic memory, fixed set of pages known at
-// compile time. Add new real pages by replacing a PlaceholderPage entry
+// compile time. Add new real pages by replacing a MetricsPage entry
 // here (or appending a new slot) once they're implemented.
 static NetworkMonitorPage s_networkMonitorPage;
-static PlaceholderPage s_page2("Page 2");
-static PlaceholderPage s_page3("Page 3");
-static PlaceholderPage s_page4("Page 4");
-static PlaceholderPage s_page5("Page 5");
+static MetricsPage s_page2(2);
+static MetricsPage s_page3(3);
+static MetricsPage s_page4(4);
+static MetricsPage s_page5(5);
 
 static Page *const kPages[] = {
     &s_networkMonitorPage,
@@ -181,10 +182,15 @@ void DisplayManager::begin() {
   g_brightness = s.brightness;
   applyBrightness(g_brightness);
 
-  s_page2.setName(s.page2_name);
-  s_page3.setName(s.page3_name);
-  s_page4.setName(s.page4_name);
-  s_page5.setName(s.page5_name);
+  // PageConfigStore::begin() has already run by this point (called earlier
+  // in main.cpp's setup(), before DisplayManager::begin()) -- reload here
+  // because the page objects themselves were constructed during global
+  // static init, before LittleFS was even mounted, so their constructors
+  // couldn't read real config yet.
+  s_page2.reloadConfig();
+  s_page3.reloadConfig();
+  s_page4.reloadConfig();
+  s_page5.reloadConfig();
 
   kPages[s_currentPageIndex]->onSelect();
 
@@ -273,15 +279,18 @@ const char *DisplayManager::currentPageName() {
   return kPages[s_currentPageIndex]->name();
 }
 
-void DisplayManager::setPageName(uint8_t pageNumber, const String &name) {
+void DisplayManager::reloadPageConfig(uint8_t pageNumber) {
+  MetricsPage *page = nullptr;
   switch (pageNumber) {
-    case 2: s_page2.setName(name); break;
-    case 3: s_page3.setName(name); break;
-    case 4: s_page4.setName(name); break;
-    case 5: s_page5.setName(name); break;
+    case 2: page = &s_page2; break;
+    case 3: page = &s_page3; break;
+    case 4: page = &s_page4; break;
+    case 5: page = &s_page5; break;
     default:
-      Logger::log("DisplayManager: setPageName ignored out-of-range page " + String(pageNumber));
+      Logger::log("DisplayManager: reloadPageConfig ignored out-of-range page " + String(pageNumber));
       return;
   }
-  Logger::log("DisplayManager: page " + String(pageNumber) + " renamed to '" + name + "'");
+  page->reloadConfig();
+  Logger::log("DisplayManager: page " + String(pageNumber) + " config reloaded ('" +
+               page->name() + "')");
 }

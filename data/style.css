@@ -198,22 +198,58 @@ button.danger:hover {
   color: #2e7d32;
 }
 
-.pageNameRow {
+.pageMetaRow {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-.pageNameRow label {
+.pageMetaRow label {
   font-size: 14px;
   display: block;
 }
 
-.pageNameRow input {
+.pageMetaRow input,
+.pageMetaRow select {
   display: block;
   margin-top: 4px;
   padding: 6px 8px;
+}
+
+.widgetRow {
+  display: grid;
+  grid-template-columns: 140px 1fr 160px;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.widgetRow label {
+  font-size: 13px;
+  display: block;
+}
+
+.widgetRow input,
+.widgetRow textarea {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.widgetRow textarea {
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.saveWidgets {
+  margin-top: 12px;
 }
 
 .influxResult {

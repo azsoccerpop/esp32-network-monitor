@@ -4,6 +4,8 @@
 #include "DisplayManager.h"
 #include "HostMonitor.h"
 #include "Logger.h"
+#include "MetricsManager.h"
+#include "PageConfigStore.h"
 #include "WebInterface.h"
 #include "wifi_manager.h"
 
@@ -31,8 +33,10 @@ void setup() {
   }
 
   HostMonitor::begin();
+  PageConfigStore::begin();
   DisplayManager::begin();
   WebInterface::begin();
+  MetricsManager::begin();
 }
 
 void loop() {

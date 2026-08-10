@@ -19,14 +19,29 @@ void HostMonitor::loadHosts() {
   s_hosts.clear();
   s_nextId = 1;
 
-  const char* path = LittleFS.exists("/hosts.json") ? "/hosts.json" : "/data/hosts.json";
-  if (!LittleFS.exists(path)) {
-    Serial.println("hosts.json not found, using defaults");
+  // No fallback to a "/data/..." path here -- PlatformIO's LittleFS image
+  // builder flattens the contents of the local data/ folder to the root of
+  // the device filesystem, so there's no actual "/data/" directory on the
+  // device. hosts.json is created fresh by saveHosts() the first time a
+  // host is added; if it doesn't exist yet, seed one sensible default (a
+  // generic internet-reachability check) rather than starting with an
+  // empty list on a brand new device.
+  if (!LittleFS.exists("/hosts.json")) {
+    Serial.println("hosts.json not found, seeding default host");
+    HostEntry h;
+    h.id = s_nextId++;
+    h.name = "INTERNET";
+    h.host = "www.google.com";
+    h.enabled = true;
+    h.reachable = false;
+    h.lastLatencyMs = 0;
+    s_hosts.push_back(h);
     s_hostsLoadStatus = HostsLoadStatus::FileNotFound;
+    saveHosts();
     return;
   }
 
-  File f = LittleFS.open(path, "r");
+  File f = LittleFS.open("/hosts.json", "r");
   if (!f) {
     s_hostsLoadStatus = HostsLoadStatus::FileNotFound;
     return;
@@ -68,9 +83,6 @@ void HostMonitor::loadHosts() {
 
 void HostMonitor::saveHosts() {
   File f = LittleFS.open("/hosts.json", "w");
-  if (!f) {
-    f = LittleFS.open("/data/hosts.json", "w");
-  }
   if (!f) return;
   DynamicJsonDocument doc(4096);
   JsonArray arr = doc.to<JsonArray>();
@@ -86,10 +98,10 @@ void HostMonitor::saveHosts() {
 }
 
 void HostMonitor::loadSettings() {
-  const char* path = LittleFS.exists("/settings.json") ? "/settings.json" : "/data/settings.json";
-  if (!LittleFS.exists(path)) return;
+  // No "/data/..." fallback -- see the comment in loadHosts() above for why.
+  if (!LittleFS.exists("/settings.json")) return;
 
-  File f = LittleFS.open(path, "r");
+  File f = LittleFS.open("/settings.json", "r");
   if (!f) return;
   size_t size = f.size();
   std::unique_ptr<char[]> buf(new char[size+1]);
@@ -103,11 +115,6 @@ void HostMonitor::loadSettings() {
   s_settings.ping_timeout_ms = doc["ping_timeout_ms"] | s_settings.ping_timeout_ms;
   s_settings.max_hosts = doc["max_hosts"] | s_settings.max_hosts;
 
-  s_settings.page2_name = doc["page2_name"] | s_settings.page2_name;
-  s_settings.page3_name = doc["page3_name"] | s_settings.page3_name;
-  s_settings.page4_name = doc["page4_name"] | s_settings.page4_name;
-  s_settings.page5_name = doc["page5_name"] | s_settings.page5_name;
-
   s_settings.influx_version = doc["influx_version"] | s_settings.influx_version;
   s_settings.influx_host = doc["influx_host"] | s_settings.influx_host;
   s_settings.influx_port = doc["influx_port"] | s_settings.influx_port;
@@ -118,20 +125,12 @@ void HostMonitor::loadSettings() {
 
 void HostMonitor::saveSettings() {
   File f = LittleFS.open("/settings.json", "w");
-  if (!f) {
-    f = LittleFS.open("/data/settings.json", "w");
-  }
   if (!f) return;
   DynamicJsonDocument doc(2048);
   doc["brightness"] = s_settings.brightness;
   doc["ping_interval_sec"] = s_settings.ping_interval_sec;
   doc["ping_timeout_ms"] = s_settings.ping_timeout_ms;
   doc["max_hosts"] = s_settings.max_hosts;
-
-  doc["page2_name"] = s_settings.page2_name;
-  doc["page3_name"] = s_settings.page3_name;
-  doc["page4_name"] = s_settings.page4_name;
-  doc["page5_name"] = s_settings.page5_name;
 
   doc["influx_version"] = s_settings.influx_version;
   doc["influx_host"] = s_settings.influx_host;
@@ -175,19 +174,6 @@ bool HostMonitor::removeHost(uint16_t id) {
 
 void HostMonitor::saveBrightness(uint8_t b) {
   s_settings.brightness = b;
-  saveSettings();
-}
-
-void HostMonitor::savePageName(uint8_t pageNumber, const String &name) {
-  switch (pageNumber) {
-    case 2: s_settings.page2_name = name; break;
-    case 3: s_settings.page3_name = name; break;
-    case 4: s_settings.page4_name = name; break;
-    case 5: s_settings.page5_name = name; break;
-    default:
-      Serial.printf("HostMonitor: savePageName ignored out-of-range page %u\n", pageNumber);
-      return;
-  }
   saveSettings();
 }
 
