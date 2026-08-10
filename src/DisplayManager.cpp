@@ -11,6 +11,7 @@
 #include "Page.h"
 #include "MetricsPage.h"
 #include "PageConfigStore.h"
+#include "RotaryEncoder.h"
 #include "wifi_manager.h"
 
 using namespace DisplayGeometry;
@@ -61,6 +62,25 @@ static Page *const kPages[] = {
 static constexpr size_t kNumPages = sizeof(kPages) / sizeof(kPages[0]);
 static size_t s_currentPageIndex = 0;
 
+// --- Rotary encoder / settings (brightness) mode ---------------------------
+// Pressing the encoder's button toggles a dedicated brightness screen,
+// separate from the normal page rotation -- rotating while it's showing
+// adjusts brightness instead of switching pages. Pressing the button again
+// always returns to the Network page specifically (not "whatever page was
+// showing before"), per how this was specified.
+static bool s_settingsMode = false;
+static constexpr int kBrightnessStepPerDetent = 10;  // out of 255
+
+// Flash writes are relatively slow and LittleFS wears with repeated writes,
+// so spinning the knob doesn't save to disk on every single detent --
+// brightness is applied live immediately (visual feedback has no delay),
+// but the persisted save is debounced until rotation has been idle for a
+// bit, and always flushed when leaving settings mode so a change is never
+// lost even if the idle window hasn't elapsed yet.
+static constexpr uint32_t kBrightnessSaveDebounceMs = 500;
+static bool s_brightnessDirty = false;
+static uint32_t s_lastBrightnessChangeMs = 0;
+
 static void drawHeader(const char *title, bool showIp) {
   display.setFont(u8g2_font_helvR08_tr);
   display.drawStr(0, kHeaderY, title);
@@ -85,6 +105,27 @@ static void drawPortalPrompt() {
   display.drawStr(0, 27, "Join: NETMON_SETUP");
   display.drawStr(0, 44, "Then browse to:");
   display.drawStr(0, 57, "192.168.4.1:8080");
+}
+
+static void drawBrightnessSettings() {
+  display.setFont(u8g2_font_helvR08_tr);
+  display.drawStr(0, kContentTopY + 10, "Brightness");
+
+  const uint8_t percent = static_cast<uint8_t>((static_cast<uint16_t>(g_brightness) * 100) / 255);
+  char pctBuf[8];
+  snprintf(pctBuf, sizeof(pctBuf), "%u%%", percent);
+  const uint8_t pw = display.getStrWidth(pctBuf);
+  display.drawStr(kScreenWidth - kRightMargin - pw, kContentTopY + 10, pctBuf);
+
+  constexpr uint8_t kBarX = 4;
+  const uint8_t barY = kContentTopY + 18;
+  constexpr uint8_t kBarWidth = kScreenWidth - 2 * kBarX;
+  constexpr uint8_t kBarHeight = 16;
+  display.drawFrame(kBarX, barY, kBarWidth, kBarHeight);
+  const uint8_t fillW = static_cast<uint8_t>((static_cast<uint32_t>(g_brightness) * (kBarWidth - 2)) / 255);
+  if (fillW > 0) {
+    display.drawBox(kBarX + 1, barY + 1, fillW, kBarHeight - 2);
+  }
 }
 
 // Bit-bangs up to 9 SCL clock pulses (the max an I2C slave could ever be
@@ -192,6 +233,8 @@ void DisplayManager::begin() {
   s_page4.reloadConfig();
   s_page5.reloadConfig();
 
+  RotaryEncoder::begin();
+
   kPages[s_currentPageIndex]->onSelect();
 
   display.clearBuffer();
@@ -243,11 +286,64 @@ void DisplayManager::loop() {
     applyBrightness(g_brightness);
   }
 
+  // Encoder input -- skipped while the WiFi setup portal is showing, so
+  // rotation/button presses don't interfere with that flow.
+  RotaryEncoder::loop();
+  if (!WifiManager::isPortalActive()) {
+    if (RotaryEncoder::consumeButtonPress()) {
+      if (s_settingsMode) {
+        s_settingsMode = false;
+        if (s_brightnessDirty) {
+          // Flush immediately on exit even if the idle debounce window
+          // below hasn't elapsed yet -- a change should never be lost.
+          HostMonitor::saveBrightness(g_brightness);
+          s_brightnessDirty = false;
+        }
+        s_currentPageIndex = 0;  // always returns to Network specifically
+        kPages[s_currentPageIndex]->onSelect();
+        Logger::log("DisplayManager: exited settings mode, returned to Network page");
+      } else {
+        s_settingsMode = true;
+        Logger::log("DisplayManager: entered settings mode (brightness)");
+      }
+    }
+
+    const int rotationDelta = RotaryEncoder::consumeRotationDelta();
+    if (rotationDelta != 0) {
+      if (s_settingsMode) {
+        int newBrightness = static_cast<int>(g_brightness) + rotationDelta * kBrightnessStepPerDetent;
+        newBrightness = constrain(newBrightness, 0, 255);
+        g_brightness = static_cast<uint8_t>(newBrightness);
+        applyBrightness(g_brightness);
+        s_brightnessDirty = true;
+        s_lastBrightnessChangeMs = now;
+      } else {
+        for (int i = 0; i < abs(rotationDelta); ++i) {
+          if (rotationDelta > 0) {
+            nextPage();
+          } else {
+            previousPage();
+          }
+        }
+      }
+    }
+  }
+
+  // Debounced flash save -- see the comment on kBrightnessSaveDebounceMs
+  // above for why this doesn't just save on every detent.
+  if (s_brightnessDirty && (now - s_lastBrightnessChangeMs >= kBrightnessSaveDebounceMs)) {
+    HostMonitor::saveBrightness(g_brightness);
+    s_brightnessDirty = false;
+  }
+
   display.clearBuffer();
 
   if (WifiManager::isPortalActive()) {
     drawHeader("Setup", false);
     drawPortalPrompt();
+  } else if (s_settingsMode) {
+    drawHeader("Settings", false);
+    drawBrightnessSettings();
   } else {
     Page *page = kPages[s_currentPageIndex];
     drawHeader(page->name(), page->showIpInHeader());
