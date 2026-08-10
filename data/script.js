@@ -85,7 +85,7 @@ document.getElementById('resetWifi').addEventListener('click', async () => {
   }
 });
 
-// Temporary test controls, ahead of the physical rotary encoder existing.
+// Page navigation -- permanent feature, not just a stand-in for the encoder.
 async function callPageNav(endpoint) {
   try {
     const result = await fetch(endpoint, {method: 'POST'});
@@ -98,6 +98,106 @@ async function callPageNav(endpoint) {
 
 document.getElementById('nextPage').addEventListener('click', () => callPageNav('/api/display/next-page'));
 document.getElementById('prevPage').addEventListener('click', () => callPageNav('/api/display/prev-page'));
+
+async function loadPageNames() {
+  try {
+    const names = await fetchJSON('/api/page-names');
+    document.getElementById('pageName2').value = names.page2 || '';
+    document.getElementById('pageName3').value = names.page3 || '';
+    document.getElementById('pageName4').value = names.page4 || '';
+    document.getElementById('pageName5').value = names.page5 || '';
+
+    // Keep the tab labels themselves in sync with saved names too, not
+    // just the input fields inside each tab.
+    [2, 3, 4, 5].forEach((n) => {
+      const name = names[`page${n}`];
+      if (name) {
+        document.querySelector(`.tabBtn[data-tab="page${n}"]`).textContent = name;
+      }
+    });
+  } catch (err) {
+    console.error('Failed to load page names', err);
+  }
+}
+
+document.querySelectorAll('.savePageName').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const page = parseInt(btn.dataset.page, 10);
+    const name = document.getElementById(`pageName${page}`).value.trim();
+    if (!name) return;
+    try {
+      await fetch('/api/page-name', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({page, name})
+      });
+      // Also update this tab's own button label so it stays in sync
+      // without needing a page reload.
+      document.querySelector(`.tabBtn[data-tab="page${page}"]`).textContent = name;
+    } catch (err) {
+      console.error('Failed to save page name', err);
+      alert('Failed to save page name.');
+    }
+  });
+});
+
+async function loadInflux() {
+  try {
+    const cfg = await fetchJSON('/api/influx');
+    document.getElementById('influxHost').value = cfg.host || '';
+    document.getElementById('influxPort').value = cfg.port || 8086;
+    document.getElementById('influxDatabase').value = cfg.database || '';
+    document.getElementById('influxUsername').value = cfg.username || '';
+    document.getElementById('influxPassword').placeholder = cfg.passwordSet
+      ? 'Currently set -- leave blank to keep'
+      : 'Leave blank for no password';
+  } catch (err) {
+    console.error('Failed to load InfluxDB settings', err);
+  }
+}
+
+document.getElementById('saveInflux').addEventListener('click', async () => {
+  const host = document.getElementById('influxHost').value.trim();
+  const port = parseInt(document.getElementById('influxPort').value, 10) || 8086;
+  const database = document.getElementById('influxDatabase').value.trim();
+  const username = document.getElementById('influxUsername').value.trim();
+  const password = document.getElementById('influxPassword').value;
+
+  const resultEl = document.getElementById('influxTestResult');
+  const statusEl = document.getElementById('influxSaveStatus');
+  const btn = document.getElementById('saveInflux');
+
+  resultEl.className = '';
+  resultEl.textContent = '';
+  statusEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+
+  try {
+    await fetch('/api/influx', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({host, port, database, username, password})
+    });
+    document.getElementById('influxPassword').value = '';
+
+    const testRes = await fetch('/api/influx/test', {method: 'POST'});
+    const result = await testRes.json();
+
+    const success = result.reachable && result.authOk && (database === '' || result.databaseFound);
+    resultEl.className = success ? 'influxResult success' : 'influxResult error';
+    resultEl.textContent = result.message;
+
+    loadInflux();
+  } catch (err) {
+    console.error('Failed to save/test InfluxDB settings', err);
+    resultEl.className = 'influxResult error';
+    resultEl.textContent = 'Request failed -- device may be unreachable.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save & Test';
+  }
+});
 
 // Default of 100% (max contrast) is used whenever the current brightness
 // can't be determined -- request failure, malformed response, or a
@@ -137,6 +237,8 @@ window.addEventListener('load', () => {
   loadHosts();
   loadSettings();
   loadLogs();
+  loadPageNames();
+  loadInflux();
   setInterval(loadHosts, 3000);
   setInterval(loadLogs, 2000);
 });

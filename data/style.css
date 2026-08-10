@@ -98,6 +98,9 @@ a {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 button.danger {
@@ -107,6 +110,7 @@ button.danger {
   padding: 8px 14px;
   border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 button.danger:hover {
@@ -116,17 +120,17 @@ button.danger:hover {
 .wifiReset .hint {
   font-size: 12px;
   color: #666;
-  margin-top: 6px;
-  max-width: 320px;
+  margin: 0;
+  max-width: 420px;
 }
 
-.pageNavTest {
+.pageNav {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed #999;
+  border-top: 1px solid #ddd;
 }
 
-.pageNavTest button {
+.pageNav button {
   padding: 6px 12px;
   margin-right: 8px;
   cursor: pointer;
@@ -172,4 +176,62 @@ button.danger:hover {
 
 .tabContent.active {
   display: block;
+}
+
+.fieldRow {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.fieldRow input {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  width: 100%;
+  max-width: 320px;
+  box-sizing: border-box;
+}
+
+#influxSaveStatus {
+  margin-left: 10px;
+  color: #2e7d32;
+}
+
+.pageNameRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pageNameRow label {
+  font-size: 14px;
+  display: block;
+}
+
+.pageNameRow input {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+}
+
+.influxResult {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius, 4px);
+  font-size: 13px;
+  max-width: 420px;
+}
+
+.influxResult.success {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
+}
+
+.influxResult.error {
+  background: #fdecea;
+  color: #7f1d1d;
+  border: 1px solid #f5b5b1;
 }

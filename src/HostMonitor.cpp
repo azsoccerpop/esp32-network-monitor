@@ -95,13 +95,25 @@ void HostMonitor::loadSettings() {
   std::unique_ptr<char[]> buf(new char[size+1]);
   f.readBytes(buf.get(), size);
   buf[size] = '\0';
-  DynamicJsonDocument doc(1024);
+  DynamicJsonDocument doc(2048);
   DeserializationError err = deserializeJson(doc, buf.get());
   if (err) return;
   s_settings.brightness = doc["brightness"] | s_settings.brightness;
   s_settings.ping_interval_sec = doc["ping_interval_sec"] | s_settings.ping_interval_sec;
   s_settings.ping_timeout_ms = doc["ping_timeout_ms"] | s_settings.ping_timeout_ms;
   s_settings.max_hosts = doc["max_hosts"] | s_settings.max_hosts;
+
+  s_settings.page2_name = doc["page2_name"] | s_settings.page2_name;
+  s_settings.page3_name = doc["page3_name"] | s_settings.page3_name;
+  s_settings.page4_name = doc["page4_name"] | s_settings.page4_name;
+  s_settings.page5_name = doc["page5_name"] | s_settings.page5_name;
+
+  s_settings.influx_version = doc["influx_version"] | s_settings.influx_version;
+  s_settings.influx_host = doc["influx_host"] | s_settings.influx_host;
+  s_settings.influx_port = doc["influx_port"] | s_settings.influx_port;
+  s_settings.influx_database = doc["influx_database"] | s_settings.influx_database;
+  s_settings.influx_username = doc["influx_username"] | s_settings.influx_username;
+  s_settings.influx_password = doc["influx_password"] | s_settings.influx_password;
 }
 
 void HostMonitor::saveSettings() {
@@ -110,11 +122,23 @@ void HostMonitor::saveSettings() {
     f = LittleFS.open("/data/settings.json", "w");
   }
   if (!f) return;
-  DynamicJsonDocument doc(1024);
+  DynamicJsonDocument doc(2048);
   doc["brightness"] = s_settings.brightness;
   doc["ping_interval_sec"] = s_settings.ping_interval_sec;
   doc["ping_timeout_ms"] = s_settings.ping_timeout_ms;
   doc["max_hosts"] = s_settings.max_hosts;
+
+  doc["page2_name"] = s_settings.page2_name;
+  doc["page3_name"] = s_settings.page3_name;
+  doc["page4_name"] = s_settings.page4_name;
+  doc["page5_name"] = s_settings.page5_name;
+
+  doc["influx_version"] = s_settings.influx_version;
+  doc["influx_host"] = s_settings.influx_host;
+  doc["influx_port"] = s_settings.influx_port;
+  doc["influx_database"] = s_settings.influx_database;
+  doc["influx_username"] = s_settings.influx_username;
+  doc["influx_password"] = s_settings.influx_password;
   serializeJson(doc, f);
   f.close();
 }
@@ -151,6 +175,33 @@ bool HostMonitor::removeHost(uint16_t id) {
 
 void HostMonitor::saveBrightness(uint8_t b) {
   s_settings.brightness = b;
+  saveSettings();
+}
+
+void HostMonitor::savePageName(uint8_t pageNumber, const String &name) {
+  switch (pageNumber) {
+    case 2: s_settings.page2_name = name; break;
+    case 3: s_settings.page3_name = name; break;
+    case 4: s_settings.page4_name = name; break;
+    case 5: s_settings.page5_name = name; break;
+    default:
+      Serial.printf("HostMonitor: savePageName ignored out-of-range page %u\n", pageNumber);
+      return;
+  }
+  saveSettings();
+}
+
+void HostMonitor::saveInfluxConfig(const String &host, uint16_t port, const String &database,
+                                    const String &username, const String &password) {
+  s_settings.influx_host = host;
+  s_settings.influx_port = port;
+  s_settings.influx_database = database;
+  s_settings.influx_username = username;
+  // Empty password means "leave the existing one alone" -- lets the web UI
+  // submit the form without forcing a re-entry of an already-saved password.
+  if (password.length() > 0) {
+    s_settings.influx_password = password;
+  }
   saveSettings();
 }
 

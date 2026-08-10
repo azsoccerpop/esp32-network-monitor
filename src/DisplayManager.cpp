@@ -181,6 +181,11 @@ void DisplayManager::begin() {
   g_brightness = s.brightness;
   applyBrightness(g_brightness);
 
+  s_page2.setName(s.page2_name);
+  s_page3.setName(s.page3_name);
+  s_page4.setName(s.page4_name);
+  s_page5.setName(s.page5_name);
+
   kPages[s_currentPageIndex]->onSelect();
 
   display.clearBuffer();
@@ -266,4 +271,17 @@ void DisplayManager::previousPage() {
 
 const char *DisplayManager::currentPageName() {
   return kPages[s_currentPageIndex]->name();
+}
+
+void DisplayManager::setPageName(uint8_t pageNumber, const String &name) {
+  switch (pageNumber) {
+    case 2: s_page2.setName(name); break;
+    case 3: s_page3.setName(name); break;
+    case 4: s_page4.setName(name); break;
+    case 5: s_page5.setName(name); break;
+    default:
+      Logger::log("DisplayManager: setPageName ignored out-of-range page " + String(pageNumber));
+      return;
+  }
+  Logger::log("DisplayManager: page " + String(pageNumber) + " renamed to '" + name + "'");
 }

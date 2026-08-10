@@ -30,15 +30,30 @@
 
       <div class="wifiReset">
         <button id="resetWifi" class="danger">Reset WiFi</button>
-        <p class="hint">Opens the NETMON_SETUP portal so you can reconfigure which network the device connects to. The device will drop off this network until reconfigured.</p>
+        <p class="hint">Opens the NETMON_SETUP portal so you can reconfigure which network the device connects to. Join NETMON_SETUP from your phone/laptop, then browse to <strong>http://192.168.4.1:8080</strong> to configure. The device will drop off this network until reconfigured.</p>
       </div>
 
-      <div class="pageNavTest">
-        <p class="hint">Temporary test controls (until the rotary encoder is wired up):</p>
+      <div class="pageNav">
+        <p class="hint">Page Navigation:</p>
         <button id="prevPage">&larr; Prev Page</button>
         <button id="nextPage">Next Page &rarr;</button>
         <span id="currentPageLabel"></span>
       </div>
+    </section>
+
+    <section id="influx">
+      <h2>InfluxDB Connection</h2>
+      <p class="hint">Used to populate metric widgets on Pages 2-5. Currently supports InfluxDB 1.x only.</p>
+      <form id="influxForm">
+        <label class="fieldRow">Host / IP<input id="influxHost" placeholder="e.g. 10.51.201.10 or influxdb.local"></label>
+        <label class="fieldRow">Port<input id="influxPort" type="number" placeholder="8086"></label>
+        <label class="fieldRow">Database<input id="influxDatabase" placeholder="e.g. telegraf"></label>
+        <label class="fieldRow">Username <span class="hint">(optional)</span><input id="influxUsername"></label>
+        <label class="fieldRow">Password <span class="hint">(optional)</span><input id="influxPassword" type="password" placeholder="Leave blank to keep current"></label>
+        <button id="saveInflux" type="button">Save & Test</button>
+        <span id="influxSaveStatus" class="hint"></span>
+        <div id="influxTestResult"></div>
+      </form>
     </section>
 
     <section id="ota">
@@ -70,28 +85,40 @@
 
   <div class="tabContent" id="tab-page2">
     <section>
-      <h2>Page 2</h2>
+      <div class="pageNameRow">
+        <label>Page Name<input id="pageName2" maxlength="16" placeholder="Page 2"></label>
+        <button class="savePageName" data-page="2">Save</button>
+      </div>
       <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
     </section>
   </div>
 
   <div class="tabContent" id="tab-page3">
     <section>
-      <h2>Page 3</h2>
+      <div class="pageNameRow">
+        <label>Page Name<input id="pageName3" maxlength="16" placeholder="Page 3"></label>
+        <button class="savePageName" data-page="3">Save</button>
+      </div>
       <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
     </section>
   </div>
 
   <div class="tabContent" id="tab-page4">
     <section>
-      <h2>Page 4</h2>
+      <div class="pageNameRow">
+        <label>Page Name<input id="pageName4" maxlength="16" placeholder="Page 4"></label>
+        <button class="savePageName" data-page="4">Save</button>
+      </div>
       <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
     </section>
   </div>
 
   <div class="tabContent" id="tab-page5">
     <section>
-      <h2>Page 5</h2>
+      <div class="pageNameRow">
+        <label>Page Name<input id="pageName5" maxlength="16" placeholder="Page 5"></label>
+        <button class="savePageName" data-page="5">Save</button>
+      </div>
       <p class="hint">Not configured yet -- metric widgets for this OLED page will be added here in a future update.</p>
     </section>
   </div>
