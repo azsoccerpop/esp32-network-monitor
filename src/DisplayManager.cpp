@@ -71,6 +71,19 @@ static size_t s_currentPageIndex = 0;
 static bool s_settingsMode = false;
 static constexpr int kBrightnessStepPerDetent = 10;  // out of 255
 
+// The encoder-driven settings screen must never let brightness reach 0 --
+// that would make the display go fully dark while the person is actively
+// looking at it trying to adjust it, with no visual feedback of what
+// happened. The web UI slider can still go to 0% (that's a deliberate,
+// visible action from a screen you can already see), just not this path.
+static constexpr uint8_t kMinBrightnessFromEncoder = 15;  // ~6%
+
+// After this long with no encoder input (rotation or button), the display
+// returns to the Network page automatically -- whether currently on
+// another page or sitting in the settings screen.
+static constexpr uint32_t kIdleReturnTimeoutMs = 30UL * 1000UL;
+static uint32_t s_lastActivityMs = 0;
+
 // Flash writes are relatively slow and LittleFS wears with repeated writes,
 // so spinning the knob doesn't save to disk on every single detent --
 // brightness is applied live immediately (visual feedback has no delay),
@@ -291,6 +304,7 @@ void DisplayManager::loop() {
   RotaryEncoder::loop();
   if (!WifiManager::isPortalActive()) {
     if (RotaryEncoder::consumeButtonPress()) {
+      s_lastActivityMs = now;
       if (s_settingsMode) {
         s_settingsMode = false;
         if (s_brightnessDirty) {
@@ -310,9 +324,13 @@ void DisplayManager::loop() {
 
     const int rotationDelta = RotaryEncoder::consumeRotationDelta();
     if (rotationDelta != 0) {
+      s_lastActivityMs = now;
       if (s_settingsMode) {
         int newBrightness = static_cast<int>(g_brightness) + rotationDelta * kBrightnessStepPerDetent;
-        newBrightness = constrain(newBrightness, 0, 255);
+        // Floor at kMinBrightnessFromEncoder, not 0 -- see the comment on
+        // that constant above for why the encoder path specifically never
+        // lets this go fully dark.
+        newBrightness = constrain(newBrightness, static_cast<int>(kMinBrightnessFromEncoder), 255);
         g_brightness = static_cast<uint8_t>(newBrightness);
         applyBrightness(g_brightness);
         s_brightnessDirty = true;
@@ -326,6 +344,22 @@ void DisplayManager::loop() {
           }
         }
       }
+    }
+
+    // Idle timeout: after kIdleReturnTimeoutMs with no encoder input,
+    // return to the Network page automatically -- whether currently
+    // browsing another page or sitting in the settings screen.
+    const bool awayFromNetwork = (s_currentPageIndex != 0) || s_settingsMode;
+    if (awayFromNetwork && (now - s_lastActivityMs >= kIdleReturnTimeoutMs)) {
+      if (s_settingsMode && s_brightnessDirty) {
+        HostMonitor::saveBrightness(g_brightness);
+        s_brightnessDirty = false;
+      }
+      s_settingsMode = false;
+      s_currentPageIndex = 0;
+      kPages[s_currentPageIndex]->onSelect();
+      s_lastActivityMs = now;
+      Logger::log("DisplayManager: idle timeout, returned to Network page");
     }
   }
 
@@ -361,12 +395,14 @@ void DisplayManager::setBrightness(uint8_t b) {
 
 void DisplayManager::nextPage() {
   s_currentPageIndex = (s_currentPageIndex + 1) % kNumPages;
+  s_lastActivityMs = millis();
   kPages[s_currentPageIndex]->onSelect();
   Logger::log(String("DisplayManager: switched to page '") + kPages[s_currentPageIndex]->name() + "'");
 }
 
 void DisplayManager::previousPage() {
   s_currentPageIndex = (s_currentPageIndex + kNumPages - 1) % kNumPages;
+  s_lastActivityMs = millis();
   kPages[s_currentPageIndex]->onSelect();
   Logger::log(String("DisplayManager: switched to page '") + kPages[s_currentPageIndex]->name() + "'");
 }

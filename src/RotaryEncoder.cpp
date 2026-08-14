@@ -3,30 +3,61 @@
 
 namespace {
 
-// Most common cheap modules (KY-040 and similar) produce 4 raw A/B edge
-// transitions per physical detent/click. If your encoder feels like it
-// takes 2 clicks per page, or skips every other click, adjust this.
-constexpr int32_t kCountsPerDetent = 4;
+// Full-step quadrature state-machine decoder (the same well-proven
+// algorithm used in Ben Buxton's "Rotary" Arduino library). Far more
+// bounce-resistant than naively counting CHANGE interrupts on pin A alone:
+// a step is only registered once a complete, valid A/B transition sequence
+// finishes -- noisy/bouncy intermediate transitions just get rejected
+// rather than mis-counted.
+constexpr uint8_t R_START = 0x0;
+constexpr uint8_t R_CW_FINAL = 0x1;
+constexpr uint8_t R_CW_BEGIN = 0x2;
+constexpr uint8_t R_CW_NEXT = 0x3;
+constexpr uint8_t R_CCW_BEGIN = 0x4;
+constexpr uint8_t R_CCW_FINAL = 0x5;
+constexpr uint8_t R_CCW_NEXT = 0x6;
+constexpr uint8_t DIR_CW = 0x10;
+constexpr uint8_t DIR_CCW = 0x20;
 
-constexpr uint32_t kButtonDebounceMs = 200;
+const uint8_t kTransitionTable[7][4] = {
+    /* R_START     */ {R_START, R_CW_BEGIN, R_CCW_BEGIN, R_START},
+    /* R_CW_FINAL  */ {R_CW_NEXT, R_START, R_CW_FINAL, static_cast<uint8_t>(R_START | DIR_CW)},
+    /* R_CW_BEGIN  */ {R_CW_NEXT, R_CW_BEGIN, R_START, R_START},
+    /* R_CW_NEXT   */ {R_CW_NEXT, R_CW_BEGIN, R_CW_FINAL, R_START},
+    /* R_CCW_BEGIN */ {R_CCW_NEXT, R_START, R_CCW_BEGIN, R_START},
+    /* R_CCW_FINAL */ {R_CCW_NEXT, R_CCW_FINAL, R_START, static_cast<uint8_t>(R_START | DIR_CCW)},
+    /* R_CCW_NEXT  */ {R_CCW_NEXT, R_CCW_FINAL, R_CCW_BEGIN, R_START},
+};
 
-volatile int32_t s_rawCounter = 0;
+// If clockwise rotation ever ends up decrementing (or vice versa) on
+// different hardware in the future, the physical wiring's A/B sense is just
+// the opposite of what this table assumes -- flip this rather than
+// rewiring anything. Confirmed correct as-is on the current hardware
+// (CLK/GPIO26, DT/GPIO27).
+constexpr bool kInvertDirection = false;
+
+volatile uint8_t s_state = R_START;
+volatile int32_t s_stepCounter = 0;
 portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
-int32_t s_carry = 0;  // leftover sub-detent raw counts between reads
-
-bool s_lastButtonReading = HIGH;   // INPUT_PULLUP -- HIGH = not pressed
+bool s_lastButtonReading = HIGH;  // INPUT_PULLUP -- HIGH = not pressed
 uint32_t s_lastButtonChangeMs = 0;
 bool s_buttonPressPending = false;
+constexpr uint32_t kButtonDebounceMs = 200;
 
-void IRAM_ATTR onEncoderAChanged() {
-  const bool a = digitalRead(EncoderPins::kPinA);
-  const bool b = digitalRead(EncoderPins::kPinB);
+void IRAM_ATTR onEncoderChanged() {
+  const uint8_t a = digitalRead(EncoderPins::kPinA);
+  const uint8_t b = digitalRead(EncoderPins::kPinB);
+  const uint8_t code = (a << 1) | b;
+
   portENTER_CRITICAL_ISR(&s_mux);
-  if (a == b) {
-    ++s_rawCounter;
-  } else {
-    --s_rawCounter;
+  const uint8_t newState = kTransitionTable[s_state & 0x0F][code];
+  s_state = newState;
+  const uint8_t direction = newState & 0x30;
+  if (direction == DIR_CW) {
+    s_stepCounter += kInvertDirection ? -1 : 1;
+  } else if (direction == DIR_CCW) {
+    s_stepCounter += kInvertDirection ? 1 : -1;
   }
   portEXIT_CRITICAL_ISR(&s_mux);
 }
@@ -38,7 +69,10 @@ void RotaryEncoder::begin() {
   pinMode(EncoderPins::kPinB, INPUT_PULLUP);
   pinMode(EncoderPins::kPinButton, INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(EncoderPins::kPinA), onEncoderAChanged, CHANGE);
+  // Both pins need to trigger the decoder -- reading only pin A misses
+  // transitions and produces unreliable step/direction detection.
+  attachInterrupt(digitalPinToInterrupt(EncoderPins::kPinA), onEncoderChanged, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(EncoderPins::kPinB), onEncoderChanged, CHANGE);
 
   s_lastButtonReading = digitalRead(EncoderPins::kPinButton);
 }
@@ -60,15 +94,11 @@ void RotaryEncoder::loop() {
 }
 
 int RotaryEncoder::consumeRotationDelta() {
-  int32_t raw;
+  int32_t steps;
   portENTER_CRITICAL(&s_mux);
-  raw = s_rawCounter;
-  s_rawCounter = 0;
+  steps = s_stepCounter;
+  s_stepCounter = 0;
   portEXIT_CRITICAL(&s_mux);
-
-  const int32_t total = s_carry + raw;
-  const int32_t steps = total / kCountsPerDetent;
-  s_carry = total % kCountsPerDetent;
   return static_cast<int>(steps);
 }
 
