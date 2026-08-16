@@ -123,7 +123,8 @@ const PAGE_DEFAULTS = {
       {
         label: 'Used %',
         query: 'SELECT last("raidTotalSize") - last("raidFreeSize") AS used_bytes, last("raidTotalSize") AS total_bytes, (last("raidTotalSize") - last("raidFreeSize")) / last("raidTotalSize") * 100 AS used_pct FROM "synology_volume" WHERE ("host" = \'homenas1\' AND "raidName" = \'Volume 1\')',
-        field: 'used_pct'
+        field: 'used_pct',
+        max: '100'
       },
       {label: '', query: '', field: ''}
     ]
@@ -158,6 +159,7 @@ function widgetRowHTML(n, slot) {
       <label>Label<input id="widgetLabel${n}_${slot}" maxlength="16" placeholder="e.g. Used"></label>
       <label>Query<textarea id="widgetQuery${n}_${slot}" rows="3" placeholder="SELECT last(value) FROM measurement WHERE ..."></textarea></label>
       <label>Field <span class="hint">(optional -- defaults to the first column)</span><input id="widgetField${n}_${slot}" placeholder="e.g. used_bytes"></label>
+      <label>Max Value <span class="hint">(Barchart mode -- this widget's own 100% scale. Blank defaults to 100 for a "pct"/"percent" field, otherwise the bar just shows full for any positive value)</span><input id="widgetMax${n}_${slot}" placeholder="e.g. 100, or 2000000000000 for a 2TB volume in bytes"></label>
     </div>
   `;
 }
@@ -192,6 +194,7 @@ async function loadPageSection(n) {
     document.getElementById(`widgetLabel${n}_${slot}`).value = w.label || '';
     document.getElementById(`widgetQuery${n}_${slot}`).value = w.query || '';
     document.getElementById(`widgetField${n}_${slot}`).value = w.field || '';
+    document.getElementById(`widgetMax${n}_${slot}`).value = w.max || '';
   });
 
   section.querySelector('.savePageMeta').addEventListener('click', async () => {
@@ -215,7 +218,8 @@ async function loadPageSection(n) {
     const widgets = [0, 1, 2, 3].map((slot) => ({
       label: document.getElementById(`widgetLabel${n}_${slot}`).value.trim(),
       query: document.getElementById(`widgetQuery${n}_${slot}`).value.trim(),
-      field: document.getElementById(`widgetField${n}_${slot}`).value.trim()
+      field: document.getElementById(`widgetField${n}_${slot}`).value.trim(),
+      max: document.getElementById(`widgetMax${n}_${slot}`).value.trim()
     }));
     const status = document.getElementById(`widgetSaveStatus${n}`);
     try {

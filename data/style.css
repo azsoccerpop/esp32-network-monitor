@@ -220,7 +220,7 @@ button.danger:hover {
 
 .widgetRow {
   display: grid;
-  grid-template-columns: 140px 1fr 160px;
+  grid-template-columns: 120px 1fr 130px 160px;
   gap: 12px;
   align-items: start;
   padding: 10px 0;

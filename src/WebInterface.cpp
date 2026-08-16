@@ -127,6 +127,7 @@ static void handleGetPageConfig(AsyncWebServerRequest *request) {
     wo["label"] = w.label;
     wo["query"] = w.query;
     wo["field"] = w.field;
+    wo["max"] = w.maxValue;
   }
   String out;
   serializeJson(doc, out);
@@ -183,6 +184,7 @@ static void handlePostPageWidgets(AsyncWebServerRequest *request, JsonVariant &j
     widgets[i].label = String(wo["label"] | "");
     widgets[i].query = String(wo["query"] | "");
     widgets[i].field = String(wo["field"] | "");
+    widgets[i].maxValue = String(wo["max"] | "");
     ++i;
   }
   PageConfigStore::saveWidgets(pageNumber, widgets);

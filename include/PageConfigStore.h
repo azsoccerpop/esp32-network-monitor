@@ -5,10 +5,21 @@
 // InfluxQL query (can select multiple aliased fields in one query, e.g. to
 // avoid hitting Influx 3x for 3 related values); `field` names which column
 // to use from the result -- leave empty to use the first non-"time" column.
+//
+// `maxValue` is the bar's independent full-scale value in Barchart mode
+// (e.g. "100" for a percentage, "2000000000000" for a 2TB volume in bytes).
+// Widgets are scaled entirely independently of each other -- they may hold
+// completely unrelated data (bytes, percentages, temperatures, whatever),
+// so one widget's bar is never scaled relative to another's value. Left
+// empty, a field whose name contains "pct"/"percent" defaults to 100;
+// anything else has no way to infer a sensible scale and should have this
+// set explicitly, or its bar will just render full whenever it has any
+// positive value.
 struct MetricWidget {
   String label;
   String query;
   String field;
+  String maxValue;
 };
 
 enum class PageFormat { Table, Barchart };

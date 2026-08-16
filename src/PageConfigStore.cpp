@@ -26,6 +26,7 @@ void save() {
       wo["label"] = w.label;
       wo["query"] = w.query;
       wo["field"] = w.field;
+      wo["max"] = w.maxValue;
     }
   }
   serializeJson(doc, f);
@@ -51,9 +52,9 @@ void load() {
       "last(\"raidTotalSize\") AS total_bytes, "
       "(last(\"raidTotalSize\") - last(\"raidFreeSize\")) / last(\"raidTotalSize\") * 100 AS used_pct "
       "FROM \"synology_volume\" WHERE (\"host\" = 'homenas1' AND \"raidName\" = 'Volume 1')";
-  s_pages[0].widgets[0] = {"Used", kDiskUsageQuery, "used_bytes"};
-  s_pages[0].widgets[1] = {"Total", kDiskUsageQuery, "total_bytes"};
-  s_pages[0].widgets[2] = {"Used %", kDiskUsageQuery, "used_pct"};
+  s_pages[0].widgets[0] = {"Used", kDiskUsageQuery, "used_bytes", ""};
+  s_pages[0].widgets[1] = {"Total", kDiskUsageQuery, "total_bytes", ""};
+  s_pages[0].widgets[2] = {"Used %", kDiskUsageQuery, "used_pct", "100"};
 
   if (!LittleFS.exists("/page_config.json")) return;
   File f = LittleFS.open("/page_config.json", "r");
@@ -84,6 +85,7 @@ void load() {
       s_pages[i].widgets[slot].label = wo["label"] | "";
       s_pages[i].widgets[slot].query = wo["query"] | "";
       s_pages[i].widgets[slot].field = wo["field"] | "";
+      s_pages[i].widgets[slot].maxValue = wo["max"] | "";
       ++slot;
     }
   }

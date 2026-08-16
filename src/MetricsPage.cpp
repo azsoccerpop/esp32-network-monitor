@@ -20,11 +20,35 @@ void MetricsPage::reloadConfig() {
 }
 
 namespace {
+bool isWidgetActive(const MetricWidget &w) {
+  return w.label.length() > 0 && w.query.length() > 0;
+}
+
 bool hasAnyConfiguredWidget(const PageConfig &cfg) {
   for (const auto &w : cfg.widgets) {
-    if (w.label.length() > 0 && w.query.length() > 0) return true;
+    if (isWidgetActive(w)) return true;
   }
   return false;
+}
+
+// Resolves the full-scale value for one widget's bar, entirely independent
+// of any other widget on the page -- widgets may hold completely unrelated
+// data (bytes vs. percentages vs. raw counts), so bars are never scaled
+// relative to each other. An explicit Max Value wins if set; a
+// percentage-shaped field name falls back to 100; otherwise there's no way
+// to infer a sensible scale, so the bar just renders full for any positive
+// value (set Max Value to fix that for a given widget).
+double resolveMaxValue(const MetricWidget &w, double actualValue) {
+  if (w.maxValue.length() > 0) {
+    const double m = w.maxValue.toDouble();
+    if (m > 0) return m;
+  }
+  String f = w.field;
+  f.toLowerCase();
+  if (f.indexOf("pct") >= 0 || f.indexOf("percent") >= 0) {
+    return 100.0;
+  }
+  return (actualValue > 0) ? actualValue : 1.0;
 }
 }  // namespace
 
@@ -51,7 +75,7 @@ void MetricsPage::drawTable(U8G2 &display) {
   constexpr uint8_t kRowHeight = 10;
   for (uint8_t i = 0; i < 4; ++i) {
     const auto &w = cfg.widgets[i];
-    if (w.label.length() == 0) continue;
+    if (!isWidgetActive(w)) continue;
     const uint8_t y = kContentTopY + i * kRowHeight;
 
     display.drawStr(0, y, w.label.c_str());
@@ -75,15 +99,6 @@ void MetricsPage::drawBarchart(U8G2 &display) {
   const PageConfig cfg = PageConfigStore::getPageConfig(pageNumber_);
   display.setFont(u8g2_font_helvR08_tr);
 
-  MetricValue values[4];
-  double maxVal = 0;
-  for (uint8_t i = 0; i < 4; ++i) {
-    values[i] = MetricsManager::getValue(pageNumber_, i);
-    if (values[i].ok && values[i].numericValue > maxVal) {
-      maxVal = values[i].numericValue;
-    }
-  }
-
   constexpr uint8_t kRowHeight = 10;
   constexpr uint8_t kBarX = 30;
   constexpr uint8_t kBarMaxWidth = 70;
@@ -91,7 +106,7 @@ void MetricsPage::drawBarchart(U8G2 &display) {
 
   for (uint8_t i = 0; i < 4; ++i) {
     const auto &w = cfg.widgets[i];
-    if (w.label.length() == 0) continue;
+    if (!isWidgetActive(w)) continue;
     const uint8_t y = kContentTopY + i * kRowHeight;
 
     char labelBuf[8];
@@ -99,9 +114,12 @@ void MetricsPage::drawBarchart(U8G2 &display) {
     display.drawStr(0, y, labelBuf);
 
     display.drawFrame(kBarX, y - kBarHeight, kBarMaxWidth, kBarHeight);
-    if (values[i].ok && maxVal > 0) {
-      const uint8_t fillW =
-          static_cast<uint8_t>((values[i].numericValue / maxVal) * (kBarMaxWidth - 2));
+
+    const MetricValue mv = MetricsManager::getValue(pageNumber_, i);
+    if (mv.ok) {
+      const double maxVal = resolveMaxValue(w, mv.numericValue);
+      const uint8_t fillW = static_cast<uint8_t>(
+          constrain((mv.numericValue / maxVal) * (kBarMaxWidth - 2), 0, kBarMaxWidth - 2));
       if (fillW > 0) {
         display.drawBox(kBarX + 1, y - kBarHeight + 1, fillW, kBarHeight - 2);
       }
